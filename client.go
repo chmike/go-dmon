@@ -96,10 +96,7 @@ func getAcks(conn net.Conn, ack chan struct{}) {
 	buf := make([]byte, 3)
 	defer conn.Close()
 
-	for {
-		// wait for ack request
-		_ = <-ack
-
+	for range ack {
 		// do read ack from connection
 		_, err := io.ReadFull(conn, buf)
 		if err != nil {
