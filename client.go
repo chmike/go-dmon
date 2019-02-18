@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -34,7 +36,13 @@ func runAsClient() {
 	}
 	defer conn.Close()
 	log.Println("connected to:", conn.RemoteAddr())
-	buf := make([]byte, 3)
+
+	ack := make(chan struct{}, 5000)
+	go getAcks(conn, ack)
+
+	prevTime := time.Now()
+	prevCount := 0
+	lastCount := 0
 	for {
 		m := monEntry{
 			Stamp:     time.Now(),
@@ -50,12 +58,34 @@ func runAsClient() {
 		if err != nil {
 			log.Fatalln("send error:", err)
 		}
-		log.Printf("send '%s' (%d bytes)", msg, n)
+		if lastCount-prevCount == statCount {
+			duration := time.Since(prevTime)
+			microSec := duration.Seconds() * 1000000 / float64(statCount)
+			log.Printf("send '%s' (%d bytes)", msg, n)
+			log.Printf("%.3f usec/msg, %.3f Hz\n", microSec, 1000000/microSec)
+			prevCount = lastCount
+			prevTime = time.Now()
+		}
+		lastCount++
 
-		_, err = io.ReadFull(conn, buf)
+		ack <- struct{}{}
+	}
+}
+
+func getAcks(conn net.Conn, ack chan struct{}) {
+	buf := make([]byte, 3)
+	defer conn.Close()
+
+	for {
+		// wait for ack request
+		_ = <-ack
+
+		// do read ack from connection
+		_, err := io.ReadFull(conn, buf)
 		if err != nil {
 			if err == io.EOF {
-				break
+				log.Printf("close conn")
+				os.Exit(0)
 			}
 			log.Fatal(err)
 		}
@@ -63,5 +93,4 @@ func runAsClient() {
 			log.Fatalf("expected \"ack\", got %s", string(buf))
 		}
 	}
-	log.Printf("close conn")
 }

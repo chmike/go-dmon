@@ -69,7 +69,8 @@ func handleClient(conn net.Conn, monEntryChan chan *monEntry) {
 
 		_, err = io.WriteString(conn, "ack")
 		if err != nil {
-			log.Fatalln("send error:", err)
+			log.Println("send error:", err)
+			break
 		}
 
 	}

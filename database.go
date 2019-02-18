@@ -10,7 +10,7 @@ import (
 
 var (
 	mysqlCredentials = "dmon:4dmonTest!@/dmon?charset=utf8"
-	statCount        = 1000
+	statCount        = 5000
 )
 
 func database(monEntryChan chan *monEntry) {
@@ -62,7 +62,8 @@ func database(monEntryChan chan *monEntry) {
 
 		if lastCount-prevCount == statCount {
 			duration := time.Since(prevTime)
-			log.Printf("%f sec for %d messages\n", duration.Seconds(), statCount)
+			microSec := duration.Seconds() * 1000000 / float64(statCount)
+			log.Printf("%.3f usec/msg, %.3f Hz\n", microSec, 1000000/microSec)
 			prevCount = lastCount
 			prevTime = time.Now()
 		}
