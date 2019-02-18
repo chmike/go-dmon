@@ -18,25 +18,33 @@ var monEntryPool = sync.Pool{New: func() interface{} { return new(monEntry) }}
 func runAsServer() {
 	log.SetPrefix("server ")
 
-	monEntryChan := make(chan *monEntry)
+	monEntryChan := make(chan *monEntry, 1000)
 	go database(monEntryChan)
 
-	// listen for a TLS connection
-	serverCert, err := tls.LoadX509KeyPair(serverCRTFilename, serverKeyFilename)
-	if err != nil {
-		log.Fatal(err)
+	var listener net.Listener
+	var err error
+	if *tlsFlag {
+		// listen for a TLS connection
+		var serverCert tls.Certificate
+		serverCert, err = tls.LoadX509KeyPair(serverCRTFilename, serverKeyFilename)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		config := tls.Config{
+			Certificates: []tls.Certificate{serverCert},
+			ClientAuth:   tls.RequireAndVerifyClientCert,
+			ClientCAs:    certPool,
+		}
+		config.Rand = rand.Reader
+		listener, err = tls.Listen("tcp", *addressFlag, &config)
+		if err != nil {
+			log.Fatalln("failed listen:", err)
+		}
+	} else {
+		listener, err = net.Listen("tcp", *addressFlag)
 	}
 
-	config := tls.Config{
-		Certificates: []tls.Certificate{serverCert},
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-		ClientCAs:    certPool,
-	}
-	config.Rand = rand.Reader
-	listener, err := tls.Listen("tcp", *addressFlag, &config)
-	if err != nil {
-		log.Fatalln("failed listen:", err)
-	}
 	log.Println("listen:", *addressFlag)
 
 	for {

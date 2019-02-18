@@ -25,12 +25,22 @@ func runAsClient() {
 	}
 	log.Println("target:", *addressFlag)
 
-	clientCert, err := tls.LoadX509KeyPair(clientCRTFilename, clientKeyFilename)
-	config := tls.Config{
-		Certificates:       []tls.Certificate{clientCert},
-		InsecureSkipVerify: !serverDNSNameCheck,
+	var conn net.Conn
+	var err error
+	if *tlsFlag {
+		var clientCert tls.Certificate
+		clientCert, err = tls.LoadX509KeyPair(clientCRTFilename, clientKeyFilename)
+		if err != nil {
+			log.Fatal(err)
+		}
+		config := tls.Config{
+			Certificates:       []tls.Certificate{clientCert},
+			InsecureSkipVerify: !serverDNSNameCheck,
+		}
+		conn, err = tls.Dial("tcp", *addressFlag, &config)
+	} else {
+		conn, err = net.Dial("tcp", *addressFlag)
 	}
-	conn, err := tls.Dial("tcp", *addressFlag, &config)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -69,8 +79,8 @@ func runAsClient() {
 		}
 		if lastCount-prevCount == statCount {
 			duration := time.Since(prevTime)
-			microSec := duration.Seconds() * 1000000 / float64(statCount)
-			log.Printf("send '%s' (%d bytes)", string(buf[:n]), n)
+			microSec := (duration.Seconds() * 1000000) / float64(statCount)
+			log.Printf("send '%s' (%d bytes)", data, n+4)
 			log.Printf("%.3f usec/msg, %.3f Hz\n", microSec, 1000000/microSec)
 			prevCount = lastCount
 			prevTime = time.Now()

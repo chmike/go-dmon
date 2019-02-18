@@ -16,6 +16,7 @@ var (
 	addressFlag    = flag.String("a", "0.0.0.0:3000", "address to listen (server), or send message to (client)")
 	pkiFlag        = flag.Bool("k", false, "(re)generate private keys and certificates")
 	dbFlag         = flag.Bool("db", false, "store monitoring messages in database")
+	tlsFlag        = flag.Bool("tls", false, "use TLS connection")
 )
 
 // For TLS client server, see
