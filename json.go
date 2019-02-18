@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+const (
+	// tfmt = "2006-01-02T15:04:05.000000"
+	tfmt = time.RFC3339Nano
+)
+
 type monEntry struct {
 	mID       int64
 	Stamp     time.Time `json:"stamp"`
@@ -20,7 +25,7 @@ func (m *monEntry) MarshalJSON() ([]byte, error) {
 		Stamp string `json:"stamp"`
 		*Alias
 	}{
-		Stamp: m.Stamp.Format("2006-01-02 15:04:05.000000"),
+		Stamp: m.Stamp.Format(tfmt),
 		Alias: (*Alias)(m),
 	}
 	return json.Marshal(&aux)
@@ -37,6 +42,6 @@ func (m *monEntry) UnmarshalJSON(data []byte) (err error) {
 	if err = json.Unmarshal(data, &aux); err != nil {
 		return
 	}
-	m.Stamp, err = time.Parse("2006-01-02 15:04:05.000000", aux.Stamp)
+	m.Stamp, err = time.Parse(tfmt, aux.Stamp)
 	return
 }

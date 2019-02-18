@@ -3,13 +3,14 @@ package main
 import (
 	"crypto/rand"
 	"crypto/tls"
+	"encoding/binary"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net"
-	"strconv"
 	"sync"
+
+	"github.com/pkg/errors"
 )
 
 var monEntryPool = sync.Pool{New: func() interface{} { return new(monEntry) }}
@@ -52,11 +53,9 @@ func runAsServer() {
 func handleClient(conn net.Conn, monEntryChan chan *monEntry) {
 	defer conn.Close()
 
-	b := newBuffer()
 	for {
 		m := monEntryPool.New().(*monEntry)
-
-		err := recvMsg(m, b, conn)
+		err := recvMsg(m, conn)
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -88,49 +87,21 @@ func newBuffer() *buffer {
 	}
 }
 
-func recvMsg(m *monEntry, b *buffer, conn net.Conn) error {
-	pos := 0
-loop:
-	for {
-		for pos < b.len {
-			if b.buf[pos] == ':' {
-				break loop
-			}
-			pos++
-		}
-		if err := recvBytes(b, conn); err != nil {
-			return err
-		}
-	}
-	strLen, err := strconv.Atoi(string(b.buf[:pos]))
+func recvMsg(m *monEntry, conn net.Conn) error {
+	var hdr [4]byte
+	_, err := io.ReadFull(conn, hdr[:])
 	if err != nil {
-		return fmt.Errorf("readMsg: decode length: %s", err)
+		return errors.Wrapf(err, "could not read message header")
 	}
-	strBeg := pos + 1
-	strEnd := strBeg + strLen
-	for b.len < strEnd {
-		if err := recvBytes(b, conn); err != nil {
-			return err
-		}
-	}
-	err = json.Unmarshal(b.buf[strBeg:strEnd], m)
+	buf := make([]byte, binary.LittleEndian.Uint32(hdr[:]))
+	_, err = io.ReadFull(conn, buf)
 	if err != nil {
-		return fmt.Errorf("readMsg: json decode: %s", err)
+		return errors.Wrapf(err, "could not read message payload")
 	}
-	b.len = copy(b.buf, b.buf[strEnd:b.len])
-	return nil
-}
 
-func recvBytes(b *buffer, conn net.Conn) error {
-	if b.len == len(b.buf) {
-		tmp := make([]byte, b.len*2)
-		copy(tmp, b.buf)
-		b.buf = tmp
-	}
-	n, err := conn.Read(b.buf[b.len:])
+	err = json.Unmarshal(buf, m)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "could not decode message payload: %s", string(buf))
 	}
-	b.len += n
 	return nil
 }
