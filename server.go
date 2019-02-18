@@ -44,7 +44,6 @@ func runAsServer() {
 			log.Printf("server: accept: %s", err)
 			break
 		}
-		defer conn.Close()
 		log.Printf("server: accepted from %s", conn.RemoteAddr())
 		go handleClient(conn, monEntryChan)
 	}
