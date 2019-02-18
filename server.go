@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/rand"
 	"crypto/tls"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -53,12 +52,6 @@ func runAsServer() {
 
 func handleClient(conn net.Conn, monEntryChan chan *monEntry) {
 	defer conn.Close()
-
-	db, err := sql.Open("mysql", mysqlCredentials)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	defer db.Close()
 
 	b := newBuffer()
 	for {

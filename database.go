@@ -14,13 +14,20 @@ var (
 )
 
 func database(monEntryChan chan *monEntry) {
-	db, err := sql.Open("mysql", mysqlCredentials)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	defer db.Close()
+	var db *sql.DB
+	var err error
+	defer func() {
+		if db != nil {
+			db.Close()
+		}
+	}()
 
-	_, err = db.Exec(`
+	if *dbFlag {
+		db, err = sql.Open("mysql", mysqlCredentials)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		_, err = db.Exec(`
 			CREATE TABLE IF NOT EXISTS dmon (
 				mid BIGINT NOT NULL AUTO_INCREMENT,
 				stamp DATETIME(6) NOT NULL,
@@ -31,8 +38,9 @@ func database(monEntryChan chan *monEntry) {
 				PRIMARY KEY (mid)
 			) ENGINE=INNODB
 		`)
-	if err != nil {
-		log.Fatalln(err)
+		if err != nil {
+			log.Fatalln(err)
+		}
 	}
 
 	prevTime := time.Now()
@@ -41,11 +49,13 @@ func database(monEntryChan chan *monEntry) {
 	for {
 		m := <-monEntryChan
 
-		_, err = db.Exec("INSERT dmon SET stamp=?,level=?,system=?,component=?,message=?",
-			m.Stamp, m.Level, m.System, m.Component, m.Message)
-		if err != nil {
-			log.Println("ERROR:", err, ": ignoring entry")
-			continue
+		if *dbFlag {
+			_, err = db.Exec("INSERT dmon SET stamp=?,level=?,system=?,component=?,message=?",
+				m.Stamp, m.Level, m.System, m.Component, m.Message)
+			if err != nil {
+				log.Println("ERROR:", err, ": ignoring entry")
+				continue
+			}
 		}
 
 		monEntryPool.Put(m)
