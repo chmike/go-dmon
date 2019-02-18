@@ -64,6 +64,7 @@ func createPKI() {
 		log.Fatal(err)
 	}
 	log.Println("generated 'server.key' and 'server.crt'")
+	os.Exit(0)
 }
 
 func createAndSaveKey(filename string) (crypto.PrivateKey, crypto.PublicKey, error) {

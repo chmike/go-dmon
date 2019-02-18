@@ -2,8 +2,8 @@ package main
 
 import (
 	"crypto/tls"
+	"encoding/binary"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -43,6 +43,7 @@ func runAsClient() {
 	prevTime := time.Now()
 	prevCount := 0
 	lastCount := 0
+	buf := make([]byte, 4, 512)
 	for {
 		m := monEntry{
 			Stamp:     time.Now(),
@@ -52,16 +53,24 @@ func runAsClient() {
 			Message:   "no problem",
 		}
 
-		data, err := json.Marshal(&m)
-		msg := fmt.Sprintf("%d:%s", len(data), string(data))
-		n, err := io.WriteString(conn, msg)
+		data, err := json.Marshal(m)
+		if err != nil {
+			log.Fatalf("could not encode message to JSON: %v", err)
+		}
+		binary.LittleEndian.PutUint32(buf[:4], uint32(len(data)))
+		if len(data) > len(buf)-4 {
+			buf = append(buf, make([]byte, len(data))...)
+		}
+		copy(buf[4:], data) // FIXME(sbinet): segregate writes b/w hdr/payload
+
+		n, err := conn.Write(buf[:4+len(data)])
 		if err != nil {
 			log.Fatalln("send error:", err)
 		}
 		if lastCount-prevCount == statCount {
 			duration := time.Since(prevTime)
 			microSec := duration.Seconds() * 1000000 / float64(statCount)
-			log.Printf("send '%s' (%d bytes)", msg, n)
+			log.Printf("send '%s' (%d bytes)", string(buf[:n]), n)
 			log.Printf("%.3f usec/msg, %.3f Hz\n", microSec, 1000000/microSec)
 			prevCount = lastCount
 			prevTime = time.Now()
@@ -69,6 +78,7 @@ func runAsClient() {
 		lastCount++
 
 		ack <- struct{}{}
+		buf = buf[:4]
 	}
 }
 

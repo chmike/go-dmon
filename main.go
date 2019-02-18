@@ -42,9 +42,13 @@ func main() {
 		log.Fatalf("failed to parse rootCA certificate '%s'\n", rootCAFilename)
 	}
 
-	if *serverFlag {
+	switch {
+	case *serverFlag:
 		runAsServer()
-	} else if *clientFlag {
+	case *clientFlag:
 		runAsClient()
+	default:
+		flag.Usage()
+		log.Fatalf("need either to run as server or as client")
 	}
 }
