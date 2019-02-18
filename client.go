@@ -52,7 +52,7 @@ func runAsClient() {
 		}
 		log.Printf("send '%s' (%d bytes)", msg, n)
 
-		n, err = io.ReadFull(conn, buf)
+		_, err = io.ReadFull(conn, buf)
 		if err != nil {
 			if err == io.EOF {
 				break

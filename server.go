@@ -10,37 +10,16 @@ import (
 	"log"
 	"net"
 	"strconv"
-
-	_ "github.com/go-sql-driver/mysql"
+	"sync"
 )
 
-var (
-	mysqlCredentials = "dmon:4dmonTest!@/dmon?charset=utf8"
-)
+var monEntryPool = sync.Pool{New: func() interface{} { return new(monEntry) }}
 
 func runAsServer() {
 	log.SetPrefix("server ")
 
-	// make sure the database table is created
-	db, err := sql.Open("mysql", mysqlCredentials)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS mon (
-			mid BIGINT NOT NULL AUTO_INCREMENT,
-			stamp DATETIME(6) NOT NULL,
-			level VARCHAR(5) NOT NULL,
-			system VARCHAR(128) NOT NULL,
-			component VARCHAR(64) NOT NULL,
-			message VARCHAR(256) NOT NULL,
-			PRIMARY KEY (mid)
-		) ENGINE=INNODB
-	`)
-	db.Close()
-	if err != nil {
-		log.Fatalln(err)
-	}
+	monEntryChan := make(chan *monEntry)
+	go database(monEntryChan)
 
 	// listen for a TLS connection
 	serverCert, err := tls.LoadX509KeyPair(serverCRTFilename, serverKeyFilename)
@@ -68,11 +47,11 @@ func runAsServer() {
 		}
 		defer conn.Close()
 		log.Printf("server: accepted from %s", conn.RemoteAddr())
-		go handleClient(conn)
+		go handleClient(conn, monEntryChan)
 	}
 }
 
-func handleClient(conn net.Conn) {
+func handleClient(conn net.Conn, monEntryChan chan *monEntry) {
 	defer conn.Close()
 
 	db, err := sql.Open("mysql", mysqlCredentials)
@@ -82,25 +61,24 @@ func handleClient(conn net.Conn) {
 	defer db.Close()
 
 	b := newBuffer()
-	var m monEntry
 	for {
-		err := recvMsg(&m, b, conn)
+		m := monEntryPool.New().(*monEntry)
+
+		err := recvMsg(m, b, conn)
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
 			log.Fatalln("error:", err)
 		}
-		_, err = db.Exec("INSERT mon SET stamp=?,level=?,system=?,component=?,message=?",
-			m.Stamp, m.Level, m.System, m.Component, m.Message)
-		if err != nil {
-			log.Println("ERROR:", err, ": ignoring entry")
-			continue
-		}
+
+		monEntryChan <- m
+
 		_, err = io.WriteString(conn, "ack")
 		if err != nil {
 			log.Fatalln("send error:", err)
 		}
+
 	}
 	log.Println("conn closed")
 }
