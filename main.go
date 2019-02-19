@@ -20,8 +20,7 @@ var (
 	dbFlag         = flag.Bool("db", false, "store monitoring messages in database")
 	tlsFlag        = flag.Bool("tls", false, "use TLS connection")
 	msgFlag        = flag.String("msg", "json", "message recv/send protocol (json, binary)")
-
-	cpuFlag = flag.Bool("cpu", false, "enable CPU profiling")
+	cpuFlag        = flag.Bool("cpu", false, "enable CPU profiling")
 )
 
 const (
@@ -30,7 +29,9 @@ const (
 )
 
 var (
-	msgCodec = JSON
+	msgCodec         = JSON
+	statWindowSize   = 1000
+	statUpdatePeriod = 5000
 )
 
 // For TLS client server, see

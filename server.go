@@ -75,16 +75,21 @@ func handleClient(conn net.Conn, msgs chan dmon.Msg) {
 			log.Fatal(errors.Wrapf(err, "could not read message header"))
 		}
 		n := binary.LittleEndian.Uint32(hdr[:])
-		_, err = io.ReadFull(conn, buf[:n])
+		if len(buf) < int(n) {
+			buf = make([]byte, n)
+		} else {
+			buf = buf[:n]
+		}
+		_, err = io.ReadFull(conn, buf)
 		if err != nil {
 			log.Fatal(errors.Wrapf(err, "could not read message payload"))
 		}
 
 		switch msgCodec {
 		case JSON:
-			err = m.UnmarshalJSON(buf[:n])
+			err = m.UnmarshalJSON(buf)
 		case BINARY:
-			err = m.UnmarshalBinary(buf[:n])
+			err = m.UnmarshalBinary(buf)
 		}
 		if err != nil {
 			if err == io.EOF {

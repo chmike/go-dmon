@@ -28,6 +28,7 @@ func runAsClient() {
 	var (
 		conn net.Conn
 		err  error
+		id   int64
 	)
 	if *tlsFlag {
 		var clientCert tls.Certificate
@@ -52,11 +53,13 @@ func runAsClient() {
 	ack := make(chan struct{}, 5000)
 	go getAcks(conn, ack)
 
-	stats := newStats(20, 100)
+	stats := newStats(statUpdatePeriod, statWindowSize)
 
-	buf := make([]byte, 4, 512)
+	buf := make([]byte, 512)
 	for {
+		id++
 		m := dmon.Msg{
+			ID:        id,
 			Stamp:     time.Now().UTC(),
 			Level:     "info",
 			System:    "dmon",
@@ -77,21 +80,21 @@ func runAsClient() {
 		if err != nil {
 			log.Fatalf("could not encode message: %v", err)
 		}
-		binary.LittleEndian.PutUint32(buf[:4], uint32(len(data)))
-		if len(data) > len(buf)-4 {
-			buf = append(buf, make([]byte, len(data))...)
-		}
-		copy(buf[4:], data) // FIXME(sbinet): segregate writes b/w hdr/payload
+		buf = buf[:4]
+		binary.LittleEndian.PutUint32(buf, uint32(len(data)))
+		buf = append(buf, data...)
 
-		n, err := conn.Write(buf[:4+len(data)])
+		n, err := conn.Write(buf)
 		if err != nil {
 			log.Fatalln("send error:", err)
+		}
+		if n != len(buf) {
+			println("truncated write")
 		}
 
 		stats.update(n)
 
 		ack <- struct{}{}
-		buf = buf[:4]
 	}
 }
 

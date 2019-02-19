@@ -68,8 +68,8 @@ type statInfo struct {
 // to update() required to update the stats.
 func newStats(period int, windowSize int) *statInfo {
 	s := &statInfo{
-		max:   period,
-		start: time.Now(),
+		cnt: -1,
+		max: period,
 	}
 	s.delay.init(windowSize)
 	s.dataLen.init(windowSize)
@@ -78,19 +78,22 @@ func newStats(period int, windowSize int) *statInfo {
 
 // update update stats
 func (s *statInfo) update(dataLen int) {
+	if s.cnt == -1 {
+		s.start = time.Now()
+	}
 	s.cnt++
 	if s.cnt != s.max {
 		s.dataLenSum += dataLen
 		return
 	}
-	println("coucou")
 	delay := time.Since(s.start).Seconds() / float64(s.max)
 	s.start = time.Now()
-	s.delay.update(delay / float64(s.max))
+	s.delay.update(delay)
 	s.dataLen.update(float64(s.dataLenSum))
 	s.dataLenSum = 0
+	s.cnt = 0
 
 	log.Printf("%.3f usec/msg, %.3f Hz, %.3f MB/s\n",
 		s.delay.average()*1000000, 1./s.delay.average(),
-		s.dataLen.average()/(s.delay.average()*1000000.))
+		s.dataLen.average()/(s.delay.average()*1000000.*float64(s.max)))
 }

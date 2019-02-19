@@ -38,7 +38,7 @@ func database(msgs chan dmon.Msg) {
 		}
 	}
 
-	stats := newStats(20, 100)
+	stats := newStats(statUpdatePeriod, statWindowSize)
 	for {
 		m := <-msgs
 
@@ -51,6 +51,6 @@ func database(msgs chan dmon.Msg) {
 			}
 		}
 
-		stats.update(116)
+		stats.update(130)
 	}
 }
