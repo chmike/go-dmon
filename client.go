@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/tls"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -53,9 +52,8 @@ func runAsClient() {
 	ack := make(chan struct{}, 5000)
 	go getAcks(conn, ack)
 
-	prevTime := time.Now()
-	prevCount := 0
-	lastCount := 0
+	stats := newStats(20, 100)
+
 	buf := make([]byte, 4, 512)
 	for {
 		m := dmon.Msg{
@@ -89,19 +87,8 @@ func runAsClient() {
 		if err != nil {
 			log.Fatalln("send error:", err)
 		}
-		if lastCount-prevCount == statCount {
-			duration := time.Since(prevTime)
-			microSec := (duration.Seconds() * 1000000) / float64(statCount)
-			str := string(buf[:n])
-			if msgCodec == BINARY {
-				str = fmt.Sprintf("%q", str)
-			}
-			log.Printf("send '%s' (%d bytes)", str, n)
-			log.Printf("%.3f usec/msg, %.3f Hz\n", microSec, 1000000/microSec)
-			prevCount = lastCount
-			prevTime = time.Now()
-		}
-		lastCount++
+
+		stats.update(n)
 
 		ack <- struct{}{}
 		buf = buf[:4]

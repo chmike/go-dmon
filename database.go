@@ -3,16 +3,12 @@ package main
 import (
 	"database/sql"
 	"log"
-	"time"
 
 	"github.com/chmike/go-dmon/dmon"
 	_ "github.com/go-sql-driver/mysql"
 )
 
-var (
-	mysqlCredentials = "dmon:4dmonTest!@/dmon?charset=utf8"
-	statCount        = 5000
-)
+var mysqlCredentials = "dmon:4dmonTest!@/dmon?charset=utf8"
 
 func database(msgs chan dmon.Msg) {
 	var (
@@ -42,9 +38,7 @@ func database(msgs chan dmon.Msg) {
 		}
 	}
 
-	prevTime := time.Now()
-	prevCount := 0
-	lastCount := 0
+	stats := newStats(20, 100)
 	for {
 		m := <-msgs
 
@@ -57,13 +51,6 @@ func database(msgs chan dmon.Msg) {
 			}
 		}
 
-		if lastCount-prevCount == statCount {
-			duration := time.Since(prevTime)
-			microSec := duration.Seconds() * 1000000 / float64(statCount)
-			log.Printf("%.3f usec/msg, %.3f Hz\n", microSec, 1000000/microSec)
-			prevCount = lastCount
-			prevTime = time.Now()
-		}
-		lastCount++
+		stats.update(116)
 	}
 }
