@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/chmike/go-dmon/dmon"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -13,7 +14,7 @@ var (
 	statCount        = 5000
 )
 
-func database(monEntryChan chan *monEntry) {
+func database(monEntryChan chan dmon.Msg) {
 	var db *sql.DB
 	var err error
 	defer func() {
@@ -57,8 +58,6 @@ func database(monEntryChan chan *monEntry) {
 				continue
 			}
 		}
-
-		monEntryPool.Put(m)
 
 		if lastCount-prevCount == statCount {
 			duration := time.Since(prevTime)

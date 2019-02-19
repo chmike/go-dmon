@@ -17,6 +17,16 @@ var (
 	pkiFlag        = flag.Bool("k", false, "(re)generate private keys and certificates")
 	dbFlag         = flag.Bool("db", false, "store monitoring messages in database")
 	tlsFlag        = flag.Bool("tls", false, "use TLS connection")
+	msgFlag        = flag.String("msg", "json", "message recv/send protocol (json, binary)")
+)
+
+const (
+	JSON = iota
+	BINARY
+)
+
+var (
+	msgCodec = JSON
 )
 
 // For TLS client server, see
@@ -41,6 +51,16 @@ func main() {
 	}
 	if !certPool.AppendCertsFromPEM(data) {
 		log.Fatalf("failed to parse rootCA certificate '%s'\n", rootCAFilename)
+	}
+
+	switch *msgFlag {
+	case "binary":
+		msgCodec = BINARY
+	case "json":
+		msgCodec = JSON
+	default:
+		flag.Usage()
+		log.Fatalf("invalid msg flag value (%s). want json or binary.", *msgFlag)
 	}
 
 	switch {

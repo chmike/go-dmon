@@ -3,7 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"encoding/binary"
-	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chmike/go-dmon/dmon"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -55,17 +56,26 @@ func runAsClient() {
 	lastCount := 0
 	buf := make([]byte, 4, 512)
 	for {
-		m := monEntry{
-			Stamp:     time.Now(),
+		m := dmon.Msg{
+			Stamp:     time.Now().UTC(),
 			Level:     "info",
 			System:    "dmon",
 			Component: "test",
 			Message:   "no problem",
 		}
 
-		data, err := json.Marshal(m)
+		var (
+			data []byte
+			err  error
+		)
+		switch msgCodec {
+		case JSON:
+			data, err = m.MarshalJSON()
+		case BINARY:
+			data, err = m.MarshalBinary()
+		}
 		if err != nil {
-			log.Fatalf("could not encode message to JSON: %v", err)
+			log.Fatalf("could not encode message: %v", err)
 		}
 		binary.LittleEndian.PutUint32(buf[:4], uint32(len(data)))
 		if len(data) > len(buf)-4 {
@@ -80,7 +90,11 @@ func runAsClient() {
 		if lastCount-prevCount == statCount {
 			duration := time.Since(prevTime)
 			microSec := (duration.Seconds() * 1000000) / float64(statCount)
-			log.Printf("send '%s' (%d bytes)", data, n+4)
+			str := string(buf[:n])
+			if msgCodec == BINARY {
+				str = fmt.Sprintf("%q", str)
+			}
+			log.Printf("send '%s' (%d bytes)", str, n)
 			log.Printf("%.3f usec/msg, %.3f Hz\n", microSec, 1000000/microSec)
 			prevCount = lastCount
 			prevTime = time.Now()
