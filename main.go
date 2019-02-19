@@ -24,7 +24,9 @@ var (
 )
 
 const (
+	// JSON encode messages
 	JSON = iota
+	// BINARY encode messages
 	BINARY
 )
 

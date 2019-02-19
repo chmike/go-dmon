@@ -66,6 +66,9 @@ func handleClient(conn net.Conn, msgs chan dmon.Msg) {
 		ack = []byte("ack")
 		buf = make([]byte, 512)
 	)
+	if !*tlsFlag {
+		conn.(*net.TCPConn).SetNoDelay(false)
+	}
 
 	for {
 		var m dmon.Msg

@@ -43,6 +43,7 @@ func runAsClient() {
 		conn, err = tls.Dial("tcp", *addressFlag, &config)
 	} else {
 		conn, err = net.Dial("tcp", *addressFlag)
+		conn.(*net.TCPConn).SetNoDelay(false)
 	}
 	if err != nil {
 		log.Fatal(err)
