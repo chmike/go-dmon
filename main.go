@@ -1,4 +1,4 @@
-package main
+package main // import "github.com/chmike/go-dmon"
 
 import (
 	"crypto/x509"
@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"log"
 	"path/filepath"
+
+	"github.com/pkg/profile"
 )
 
 var (
@@ -18,6 +20,8 @@ var (
 	dbFlag         = flag.Bool("db", false, "store monitoring messages in database")
 	tlsFlag        = flag.Bool("tls", false, "use TLS connection")
 	msgFlag        = flag.String("msg", "json", "message recv/send protocol (json, binary)")
+
+	cpuFlag = flag.Bool("cpu", false, "enable CPU profiling")
 )
 
 const (
@@ -38,7 +42,12 @@ var (
 // - https://astaxie.gitbooks.io/build-web-application-with-golang/en/05.2.html
 
 func main() {
+
 	flag.Parse()
+
+	if *cpuFlag {
+		defer profile.Start().Stop()
+	}
 
 	if *pkiFlag {
 		log.Println("(re)generating private keys and certificates")
