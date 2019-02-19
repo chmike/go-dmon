@@ -14,9 +14,11 @@ var (
 	statCount        = 5000
 )
 
-func database(monEntryChan chan dmon.Msg) {
-	var db *sql.DB
-	var err error
+func database(msgs chan dmon.Msg) {
+	var (
+		db  *sql.DB
+		err error
+	)
 
 	if *dbFlag {
 		db, err = sql.Open("mysql", mysqlCredentials)
@@ -44,7 +46,7 @@ func database(monEntryChan chan dmon.Msg) {
 	prevCount := 0
 	lastCount := 0
 	for {
-		m := <-monEntryChan
+		m := <-msgs
 
 		if *dbFlag {
 			_, err = db.Exec("INSERT dmon SET stamp=?,level=?,system=?,component=?,message=?",

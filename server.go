@@ -15,11 +15,14 @@ import (
 func runAsServer() {
 	log.SetPrefix("server ")
 
-	monEntryChan := make(chan dmon.Msg, 1000)
-	go database(monEntryChan)
+	msgs := make(chan dmon.Msg, 1000)
+	defer close(msgs)
+	go database(msgs)
 
-	var listener net.Listener
-	var err error
+	var (
+		listener net.Listener
+		err      error
+	)
 	if *tlsFlag {
 		// listen for a TLS connection
 		var serverCert tls.Certificate
@@ -51,11 +54,11 @@ func runAsServer() {
 			break
 		}
 		log.Printf("server: accepted from %s", conn.RemoteAddr())
-		go handleClient(conn, monEntryChan)
+		go handleClient(conn, msgs)
 	}
 }
 
-func handleClient(conn net.Conn, monEntryChan chan dmon.Msg) {
+func handleClient(conn net.Conn, msgs chan dmon.Msg) {
 	defer conn.Close()
 
 	var (
@@ -90,7 +93,7 @@ func handleClient(conn net.Conn, monEntryChan chan dmon.Msg) {
 			log.Fatalln("error:", err)
 		}
 
-		monEntryChan <- m
+		msgs <- m
 
 		_, err = conn.Write(ack)
 		if err != nil {

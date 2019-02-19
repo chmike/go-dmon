@@ -26,8 +26,10 @@ func runAsClient() {
 	}
 	log.Println("target:", *addressFlag)
 
-	var conn net.Conn
-	var err error
+	var (
+		conn net.Conn
+		err  error
+	)
 	if *tlsFlag {
 		var clientCert tls.Certificate
 		clientCert, err = tls.LoadX509KeyPair(clientCRTFilename, clientKeyFilename)
