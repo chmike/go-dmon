@@ -17,17 +17,13 @@ var (
 func database(monEntryChan chan dmon.Msg) {
 	var db *sql.DB
 	var err error
-	defer func() {
-		if db != nil {
-			db.Close()
-		}
-	}()
 
 	if *dbFlag {
 		db, err = sql.Open("mysql", mysqlCredentials)
 		if err != nil {
 			log.Fatalln(err)
 		}
+		defer db.Close()
 		_, err = db.Exec(`
 			CREATE TABLE IF NOT EXISTS dmon (
 				mid BIGINT NOT NULL AUTO_INCREMENT,
