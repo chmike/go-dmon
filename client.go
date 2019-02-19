@@ -31,7 +31,7 @@ func runAsClient() {
 		var clientCert tls.Certificate
 		clientCert, err = tls.LoadX509KeyPair(clientCRTFilename, clientKeyFilename)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("could not load X509 certificate: %v", err)
 		}
 		config := tls.Config{
 			Certificates:       []tls.Certificate{clientCert},
