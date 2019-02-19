@@ -4,25 +4,25 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/binary"
-	"encoding/json"
 	"io"
 	"log"
 	"net"
-	"sync"
 
+	"github.com/chmike/go-dmon/dmon"
 	"github.com/pkg/errors"
 )
-
-var monEntryPool = sync.Pool{New: func() interface{} { return new(monEntry) }}
 
 func runAsServer() {
 	log.SetPrefix("server ")
 
-	monEntryChan := make(chan *monEntry, 1000)
-	go database(monEntryChan)
+	msgs := make(chan dmon.Msg, 1000)
+	defer close(msgs)
+	go database(msgs)
 
-	var listener net.Listener
-	var err error
+	var (
+		listener net.Listener
+		err      error
+	)
 	if *tlsFlag {
 		// listen for a TLS connection
 		var serverCert tls.Certificate
@@ -54,16 +54,38 @@ func runAsServer() {
 			break
 		}
 		log.Printf("server: accepted from %s", conn.RemoteAddr())
-		go handleClient(conn, monEntryChan)
+		go handleClient(conn, msgs)
 	}
 }
 
-func handleClient(conn net.Conn, monEntryChan chan *monEntry) {
+func handleClient(conn net.Conn, msgs chan dmon.Msg) {
 	defer conn.Close()
 
+	var (
+		hdr [4]byte
+		ack = []byte("ack")
+		buf = make([]byte, 512)
+	)
+
 	for {
-		m := monEntryPool.New().(*monEntry)
-		err := recvMsg(m, conn)
+		var m dmon.Msg
+
+		_, err := io.ReadFull(conn, hdr[:])
+		if err != nil {
+			log.Fatal(errors.Wrapf(err, "could not read message header"))
+		}
+		n := binary.LittleEndian.Uint32(hdr[:])
+		_, err = io.ReadFull(conn, buf[:n])
+		if err != nil {
+			log.Fatal(errors.Wrapf(err, "could not read message payload"))
+		}
+
+		switch msgCodec {
+		case JSON:
+			err = m.UnmarshalJSON(buf[:n])
+		case BINARY:
+			err = m.UnmarshalBinary(buf[:n])
+		}
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -71,45 +93,13 @@ func handleClient(conn net.Conn, monEntryChan chan *monEntry) {
 			log.Fatalln("error:", err)
 		}
 
-		monEntryChan <- m
+		msgs <- m
 
-		_, err = io.WriteString(conn, "ack")
+		_, err = conn.Write(ack)
 		if err != nil {
 			log.Println("send error:", err)
 			break
 		}
-
 	}
 	log.Println("conn closed")
-}
-
-type buffer struct {
-	buf []byte
-	len int
-}
-
-func newBuffer() *buffer {
-	return &buffer{
-		buf: make([]byte, 512),
-		len: 0,
-	}
-}
-
-func recvMsg(m *monEntry, conn net.Conn) error {
-	var hdr [4]byte
-	_, err := io.ReadFull(conn, hdr[:])
-	if err != nil {
-		return errors.Wrapf(err, "could not read message header")
-	}
-	buf := make([]byte, binary.LittleEndian.Uint32(hdr[:]))
-	_, err = io.ReadFull(conn, buf)
-	if err != nil {
-		return errors.Wrapf(err, "could not read message payload")
-	}
-
-	err = json.Unmarshal(buf, m)
-	if err != nil {
-		return errors.Wrapf(err, "could not decode message payload: %s", string(buf))
-	}
-	return nil
 }

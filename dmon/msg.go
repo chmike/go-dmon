@@ -1,17 +1,12 @@
-package main
+package dmon
 
 import (
 	"encoding/json"
 	"time"
 )
 
-const (
-	// tfmt = "2006-01-02T15:04:05.000000"
-	tfmt = time.RFC3339Nano
-)
-
-type monEntry struct {
-	mID       int64
+type Msg struct {
+	ID        int64     `json:"id"`
 	Stamp     time.Time `json:"stamp"`
 	Level     string    `json:"level"`
 	System    string    `json:"system"`
@@ -19,22 +14,19 @@ type monEntry struct {
 	Message   string    `json:"message"`
 }
 
-func (m *monEntry) MarshalJSON() ([]byte, error) {
-	type Alias monEntry
+func (m *Msg) MarshalJSON() ([]byte, error) {
+	type Alias Msg
 	aux := &struct {
-		Stamp string `json:"stamp"`
 		*Alias
 	}{
-		Stamp: m.Stamp.Format(tfmt),
 		Alias: (*Alias)(m),
 	}
 	return json.Marshal(&aux)
 }
 
-func (m *monEntry) UnmarshalJSON(data []byte) (err error) {
-	type Alias monEntry
+func (m *Msg) UnmarshalJSON(data []byte) (err error) {
+	type Alias Msg
 	aux := struct {
-		Stamp string `json:"stamp"`
 		*Alias
 	}{
 		Alias: (*Alias)(m),
@@ -42,6 +34,5 @@ func (m *monEntry) UnmarshalJSON(data []byte) (err error) {
 	if err = json.Unmarshal(data, &aux); err != nil {
 		return
 	}
-	m.Stamp, err = time.Parse(tfmt, aux.Stamp)
 	return
 }

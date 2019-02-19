@@ -1,4 +1,4 @@
-package main
+package main // import "github.com/chmike/go-dmon"
 
 import (
 	"crypto/x509"
@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"log"
 	"path/filepath"
+
+	"github.com/pkg/profile"
 )
 
 var (
@@ -17,6 +19,18 @@ var (
 	pkiFlag        = flag.Bool("k", false, "(re)generate private keys and certificates")
 	dbFlag         = flag.Bool("db", false, "store monitoring messages in database")
 	tlsFlag        = flag.Bool("tls", false, "use TLS connection")
+	msgFlag        = flag.String("msg", "json", "message recv/send protocol (json, binary)")
+
+	cpuFlag = flag.Bool("cpu", false, "enable CPU profiling")
+)
+
+const (
+	JSON = iota
+	BINARY
+)
+
+var (
+	msgCodec = JSON
 )
 
 // For TLS client server, see
@@ -28,7 +42,12 @@ var (
 // - https://astaxie.gitbooks.io/build-web-application-with-golang/en/05.2.html
 
 func main() {
+
 	flag.Parse()
+
+	if *cpuFlag {
+		defer profile.Start().Stop()
+	}
 
 	if *pkiFlag {
 		log.Println("(re)generating private keys and certificates")
@@ -41,6 +60,16 @@ func main() {
 	}
 	if !certPool.AppendCertsFromPEM(data) {
 		log.Fatalf("failed to parse rootCA certificate '%s'\n", rootCAFilename)
+	}
+
+	switch *msgFlag {
+	case "binary":
+		msgCodec = BINARY
+	case "json":
+		msgCodec = JSON
+	default:
+		flag.Usage()
+		log.Fatalf("invalid msg flag value (%s). want json or binary.", *msgFlag)
 	}
 
 	switch {

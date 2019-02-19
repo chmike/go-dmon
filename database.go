@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/chmike/go-dmon/dmon"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -13,20 +14,18 @@ var (
 	statCount        = 5000
 )
 
-func database(monEntryChan chan *monEntry) {
-	var db *sql.DB
-	var err error
-	defer func() {
-		if db != nil {
-			db.Close()
-		}
-	}()
+func database(msgs chan dmon.Msg) {
+	var (
+		db  *sql.DB
+		err error
+	)
 
 	if *dbFlag {
 		db, err = sql.Open("mysql", mysqlCredentials)
 		if err != nil {
 			log.Fatalln(err)
 		}
+		defer db.Close()
 		_, err = db.Exec(`
 			CREATE TABLE IF NOT EXISTS dmon (
 				mid BIGINT NOT NULL AUTO_INCREMENT,
@@ -47,7 +46,7 @@ func database(monEntryChan chan *monEntry) {
 	prevCount := 0
 	lastCount := 0
 	for {
-		m := <-monEntryChan
+		m := <-msgs
 
 		if *dbFlag {
 			_, err = db.Exec("INSERT dmon SET stamp=?,level=?,system=?,component=?,message=?",
@@ -57,8 +56,6 @@ func database(monEntryChan chan *monEntry) {
 				continue
 			}
 		}
-
-		monEntryPool.Put(m)
 
 		if lastCount-prevCount == statCount {
 			duration := time.Since(prevTime)

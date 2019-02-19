@@ -3,7 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"encoding/binary"
-	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chmike/go-dmon/dmon"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -25,13 +26,15 @@ func runAsClient() {
 	}
 	log.Println("target:", *addressFlag)
 
-	var conn net.Conn
-	var err error
+	var (
+		conn net.Conn
+		err  error
+	)
 	if *tlsFlag {
 		var clientCert tls.Certificate
 		clientCert, err = tls.LoadX509KeyPair(clientCRTFilename, clientKeyFilename)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("could not load X509 certificate: %v", err)
 		}
 		config := tls.Config{
 			Certificates:       []tls.Certificate{clientCert},
@@ -55,17 +58,26 @@ func runAsClient() {
 	lastCount := 0
 	buf := make([]byte, 4, 512)
 	for {
-		m := monEntry{
-			Stamp:     time.Now(),
+		m := dmon.Msg{
+			Stamp:     time.Now().UTC(),
 			Level:     "info",
 			System:    "dmon",
 			Component: "test",
 			Message:   "no problem",
 		}
 
-		data, err := json.Marshal(m)
+		var (
+			data []byte
+			err  error
+		)
+		switch msgCodec {
+		case JSON:
+			data, err = m.MarshalJSON()
+		case BINARY:
+			data, err = m.MarshalBinary()
+		}
 		if err != nil {
-			log.Fatalf("could not encode message to JSON: %v", err)
+			log.Fatalf("could not encode message: %v", err)
 		}
 		binary.LittleEndian.PutUint32(buf[:4], uint32(len(data)))
 		if len(data) > len(buf)-4 {
@@ -80,7 +92,11 @@ func runAsClient() {
 		if lastCount-prevCount == statCount {
 			duration := time.Since(prevTime)
 			microSec := (duration.Seconds() * 1000000) / float64(statCount)
-			log.Printf("send '%s' (%d bytes)", data, n+4)
+			str := string(buf[:n])
+			if msgCodec == BINARY {
+				str = fmt.Sprintf("%q", str)
+			}
+			log.Printf("send '%s' (%d bytes)", str, n)
 			log.Printf("%.3f usec/msg, %.3f Hz\n", microSec, 1000000/microSec)
 			prevCount = lastCount
 			prevTime = time.Now()
@@ -96,10 +112,7 @@ func getAcks(conn net.Conn, ack chan struct{}) {
 	buf := make([]byte, 3)
 	defer conn.Close()
 
-	for {
-		// wait for ack request
-		_ = <-ack
-
+	for range ack {
 		// do read ack from connection
 		_, err := io.ReadFull(conn, buf)
 		if err != nil {
