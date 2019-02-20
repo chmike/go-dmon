@@ -41,6 +41,10 @@ func statDisplay(period time.Duration) {
 		stats.stamp = time.Now()
 		mbs := float64(accMsgLen) / (1000000. * delay.Seconds())
 		rate := float64(nbrMsg) / delay.Seconds()
-		log.Printf("%.3f usec/msg, %.3f Hz, %.3f MB/s\n", 1000000./rate, rate, mbs)
+		usmsg := 1000000. / rate
+		if rate == 0. {
+			usmsg = 0
+		}
+		log.Printf("%.3f usec/msg, %.3f Hz, %.3f MB/s\n", usmsg, rate, mbs)
 	}
 }

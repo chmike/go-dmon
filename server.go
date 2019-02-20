@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"time"
 
 	"github.com/chmike/go-dmon/dmon"
 	"github.com/pkg/errors"
@@ -63,17 +64,23 @@ func runAsServer() {
 	}
 }
 
-func handleClient(conn net.Conn, msgs chan msgInfo) {
-	defer conn.Close()
-
+func handleClient(netConn net.Conn, msgs chan msgInfo) {
 	var (
-		hdr [4]byte
-		ack = []byte("ack")
-		buf = make([]byte, 512)
+		hdr  [4]byte
+		ack  = []byte("ack")
+		buf  = make([]byte, 512)
+		conn io.ReadWriteCloser
 	)
-	if !*tlsFlag {
-		conn.(*net.TCPConn).SetNoDelay(false)
+
+	if *bufLenFlag == 0 && !*tlsFlag {
+		netConn.(*net.TCPConn).SetNoDelay(false)
 	}
+	if *bufLenFlag != 0 {
+		conn = newSender(netConn, time.Duration(*bufPeriodFlag)*time.Millisecond, *bufLenFlag)
+	} else {
+		conn = netConn
+	}
+	defer conn.Close()
 
 	for {
 		var m msgInfo
