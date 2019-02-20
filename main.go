@@ -31,7 +31,7 @@ const (
 )
 
 var (
-	msgCodec         = JSON
+	msgCodec         = BINARY
 	statWindowSize   = 1000
 	statUpdatePeriod = 5000
 )
