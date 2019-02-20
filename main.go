@@ -15,11 +15,11 @@ var (
 	certPool       = x509.NewCertPool()
 	serverFlag     = flag.Bool("s", false, "run as server")
 	clientFlag     = flag.Bool("c", false, "run as client")
-	addressFlag    = flag.String("a", "0.0.0.0:3000", "address to listen (server), or send message to (client)")
+	addressFlag    = flag.String("a", "127.0.0.1:3000", "address to listen (server), or send message to (client)")
 	pkiFlag        = flag.Bool("k", false, "(re)generate private keys and certificates")
 	dbFlag         = flag.Bool("db", false, "store monitoring messages in database")
 	tlsFlag        = flag.Bool("tls", false, "use TLS connection")
-	msgFlag        = flag.String("msg", "json", "message recv/send protocol (json, binary)")
+	msgFlag        = flag.String("msg", "binary", "message recv/send protocol (json, binary)")
 	cpuFlag        = flag.Bool("cpu", false, "enable CPU profiling")
 )
 

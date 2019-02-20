@@ -7,7 +7,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/chmike/go-dmon/dmon"
@@ -20,9 +19,6 @@ var (
 
 func runAsClient() {
 	log.SetPrefix("client ")
-	if strings.HasPrefix(*addressFlag, "0.0.0.0") {
-		log.Fatal("invalid address: ", *addressFlag)
-	}
 	log.Println("target:", *addressFlag)
 
 	var (
