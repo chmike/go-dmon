@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+var (
+	statWindowSize   = 10000
+	statUpdatePeriod = 100000
+)
+
 type statVal struct {
 	val  []float64
 	nbr  int

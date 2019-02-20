@@ -4,13 +4,12 @@ import (
 	"database/sql"
 	"log"
 
-	"github.com/chmike/go-dmon/dmon"
 	_ "github.com/go-sql-driver/mysql"
 )
 
 var mysqlCredentials = "dmon:4dmonTest!@/dmon?charset=utf8"
 
-func database(msgs chan dmon.Msg) {
+func database(msgs chan msgInfo) {
 	var (
 		db  *sql.DB
 		err error
@@ -39,18 +38,19 @@ func database(msgs chan dmon.Msg) {
 	}
 
 	stats := newStats(statUpdatePeriod, statWindowSize)
+
 	for {
 		m := <-msgs
 
 		if *dbFlag {
 			_, err = db.Exec("INSERT dmon SET stamp=?,level=?,system=?,component=?,message=?",
-				m.Stamp, m.Level, m.System, m.Component, m.Message)
+				m.msg.Stamp, m.msg.Level, m.msg.System, m.msg.Component, m.msg.Message)
 			if err != nil {
 				log.Println("ERROR:", err, ": ignoring entry")
 				continue
 			}
 		}
 
-		stats.update(130)
+		stats.update(m.len)
 	}
 }

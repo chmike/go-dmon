@@ -12,10 +12,15 @@ import (
 	"github.com/pkg/errors"
 )
 
+type msgInfo struct {
+	len int
+	msg dmon.Msg
+}
+
 func runAsServer() {
 	log.SetPrefix("server ")
 
-	msgs := make(chan dmon.Msg, 1000)
+	msgs := make(chan msgInfo, 1000)
 	defer close(msgs)
 	go database(msgs)
 
@@ -58,7 +63,7 @@ func runAsServer() {
 	}
 }
 
-func handleClient(conn net.Conn, msgs chan dmon.Msg) {
+func handleClient(conn net.Conn, msgs chan msgInfo) {
 	defer conn.Close()
 
 	var (
@@ -71,7 +76,7 @@ func handleClient(conn net.Conn, msgs chan dmon.Msg) {
 	}
 
 	for {
-		var m dmon.Msg
+		var m msgInfo
 
 		_, err := io.ReadFull(conn, hdr[:])
 		if err != nil {
@@ -83,6 +88,7 @@ func handleClient(conn net.Conn, msgs chan dmon.Msg) {
 		} else {
 			buf = buf[:n]
 		}
+		m.len = int(n) + 4
 		_, err = io.ReadFull(conn, buf)
 		if err != nil {
 			log.Fatal(errors.Wrapf(err, "could not read message payload"))
@@ -90,9 +96,9 @@ func handleClient(conn net.Conn, msgs chan dmon.Msg) {
 
 		switch msgCodec {
 		case JSON:
-			err = m.UnmarshalJSON(buf)
+			err = m.msg.UnmarshalJSON(buf)
 		case BINARY:
-			err = m.UnmarshalBinary(buf)
+			err = m.msg.UnmarshalBinary(buf)
 		}
 		if err != nil {
 			if err == io.EOF {

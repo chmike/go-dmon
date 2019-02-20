@@ -30,11 +30,7 @@ const (
 	BINARY
 )
 
-var (
-	msgCodec         = BINARY
-	statWindowSize   = 1000
-	statUpdatePeriod = 5000
-)
+var msgCodec = BINARY
 
 // For TLS client server, see
 // - https://gist.github.com/spikebike/2232102
