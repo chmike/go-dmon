@@ -22,8 +22,8 @@ var (
 	msgFlag        = flag.String("msg", "binary", "message recv/send protocol (json, binary)")
 	cpuFlag        = flag.Bool("cpu", false, "enable CPU profiling")
 	periodFlag     = flag.Int("p", 5, "period of stat display (seconds)")
-	bufPeriodFlag  = flag.Int("bp", 1000, "period of bufferized send (msec)")
-	bufLenFlag     = flag.Int("bl", 4096, "size of send buffer (0 = none)")
+	flushFlag      = flag.Int("f", 500, "buffer flush period (msec)")
+	bufLenFlag     = flag.Int("b", 8192, "buffer size (0 = none)")
 )
 
 const (

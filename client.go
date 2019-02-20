@@ -22,10 +22,10 @@ func runAsClient() {
 	log.Println("target:", *addressFlag)
 
 	var (
-		conn    io.ReadWriteCloser
-		netConn net.Conn
-		err     error
-		id      int64
+		bconn io.ReadWriteCloser
+		conn  net.Conn
+		err   error
+		id    int64
 	)
 	if *tlsFlag {
 		var clientCert tls.Certificate
@@ -37,26 +37,26 @@ func runAsClient() {
 			Certificates:       []tls.Certificate{clientCert},
 			InsecureSkipVerify: !serverDNSNameCheck,
 		}
-		netConn, err = tls.Dial("tcp", *addressFlag, &config)
+		conn, err = tls.Dial("tcp", *addressFlag, &config)
 	} else {
-		netConn, err = net.Dial("tcp", *addressFlag)
+		conn, err = net.Dial("tcp", *addressFlag)
 		if *bufLenFlag == 0 {
-			netConn.(*net.TCPConn).SetNoDelay(false)
+			conn.(*net.TCPConn).SetNoDelay(false)
 		}
 	}
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Println("connected to:", netConn.RemoteAddr())
-	if *bufLenFlag != 0 {
-		conn = newSender(netConn, time.Duration(*bufPeriodFlag)*time.Millisecond, *bufLenFlag)
-	} else {
-		conn = netConn
-	}
 	defer conn.Close()
+	log.Println("connected to:", conn.RemoteAddr())
+
+	bconn = conn
+	if *bufLenFlag != 0 {
+		bconn = bufferizedConn(conn, *flushFlag, *bufLenFlag)
+	}
 
 	ack := make(chan struct{}, 5000)
-	go getAcks(conn, ack)
+	go getAcks(bconn, ack)
 
 	statStart(time.Duration(*periodFlag) * time.Second)
 
@@ -89,7 +89,7 @@ func runAsClient() {
 		binary.LittleEndian.PutUint32(buf, uint32(len(data)))
 		buf = append(buf, data...)
 
-		n, err := conn.Write(buf)
+		n, err := bconn.Write(buf)
 		if err != nil {
 			log.Fatalln("send error:", err)
 		}
@@ -103,13 +103,13 @@ func runAsClient() {
 	}
 }
 
-func getAcks(conn io.ReadWriteCloser, ack chan struct{}) {
+func getAcks(bconn io.ReadWriteCloser, ack chan struct{}) {
 	buf := make([]byte, 3)
-	defer conn.Close()
+	defer bconn.Close()
 
 	for range ack {
 		// do read ack from connection
-		_, err := io.ReadFull(conn, buf)
+		_, err := io.ReadFull(bconn, buf)
 		if err != nil {
 			if err == io.EOF {
 				log.Printf("close conn")

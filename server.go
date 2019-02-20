@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"time"
 
 	"github.com/chmike/go-dmon/dmon"
 	"github.com/pkg/errors"
@@ -64,28 +63,28 @@ func runAsServer() {
 	}
 }
 
-func handleClient(netConn net.Conn, msgs chan msgInfo) {
+func handleClient(conn net.Conn, msgs chan msgInfo) {
 	var (
-		hdr  [4]byte
-		ack  = []byte("ack")
-		buf  = make([]byte, 512)
-		conn io.ReadWriteCloser
+		hdr   [4]byte
+		ack   = []byte("ack")
+		buf   = make([]byte, 512)
+		bconn io.ReadWriteCloser
 	)
 
 	if *bufLenFlag == 0 && !*tlsFlag {
-		netConn.(*net.TCPConn).SetNoDelay(false)
+		conn.(*net.TCPConn).SetNoDelay(false)
 	}
+
+	bconn = conn
 	if *bufLenFlag != 0 {
-		conn = newSender(netConn, time.Duration(*bufPeriodFlag)*time.Millisecond, *bufLenFlag)
-	} else {
-		conn = netConn
+		bconn = bufferizedConn(conn, *flushFlag, *bufLenFlag)
 	}
-	defer conn.Close()
+	defer bconn.Close()
 
 	for {
 		var m msgInfo
 
-		_, err := io.ReadFull(conn, hdr[:])
+		_, err := io.ReadFull(bconn, hdr[:])
 		if err != nil {
 			log.Fatal(errors.Wrapf(err, "could not read message header"))
 		}
@@ -96,7 +95,7 @@ func handleClient(netConn net.Conn, msgs chan msgInfo) {
 			buf = buf[:n]
 		}
 		m.len = int(n) + 4
-		_, err = io.ReadFull(conn, buf)
+		_, err = io.ReadFull(bconn, buf)
 		if err != nil {
 			log.Fatal(errors.Wrapf(err, "could not read message payload"))
 		}
@@ -116,7 +115,7 @@ func handleClient(netConn net.Conn, msgs chan msgInfo) {
 
 		msgs <- m
 
-		_, err = conn.Write(ack)
+		_, err = bconn.Write(ack)
 		if err != nil {
 			log.Println("send error:", err)
 			break
