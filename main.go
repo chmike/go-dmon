@@ -21,6 +21,7 @@ var (
 	tlsFlag        = flag.Bool("tls", false, "use TLS connection")
 	msgFlag        = flag.String("msg", "binary", "message recv/send protocol (json, binary)")
 	cpuFlag        = flag.Bool("cpu", false, "enable CPU profiling")
+	periodFlag     = flag.Int("p", 5, "period of stat display (seconds)")
 )
 
 const (

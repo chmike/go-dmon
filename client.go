@@ -50,7 +50,7 @@ func runAsClient() {
 	ack := make(chan struct{}, 5000)
 	go getAcks(conn, ack)
 
-	stats := newStats(statUpdatePeriod, statWindowSize)
+	statStart(time.Duration(*periodFlag) * time.Second)
 
 	buf := make([]byte, 512)
 	for {
@@ -89,7 +89,7 @@ func runAsClient() {
 			println("truncated write")
 		}
 
-		stats.update(n)
+		statUpdate(n)
 
 		ack <- struct{}{}
 	}

@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"log"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -37,7 +38,7 @@ func database(msgs chan msgInfo) {
 		}
 	}
 
-	stats := newStats(statUpdatePeriod, statWindowSize)
+	statStart(time.Duration(*periodFlag) * time.Second)
 
 	for {
 		m := <-msgs
@@ -51,6 +52,6 @@ func database(msgs chan msgInfo) {
 			}
 		}
 
-		stats.update(m.len)
+		statUpdate(m.len)
 	}
 }
