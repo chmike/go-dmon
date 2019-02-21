@@ -19,21 +19,12 @@ var (
 	pkiFlag        = flag.Bool("k", false, "(re)generate private keys and certificates")
 	dbFlag         = flag.Bool("db", false, "store monitoring messages in database")
 	tlsFlag        = flag.Bool("tls", false, "use TLS connection")
-	msgFlag        = flag.String("msg", "binary", "message recv/send protocol (json, binary)")
+	msgCodecFlag   = flag.String("msg", "binary", "message recv/send protocol (json, binary)")
 	cpuFlag        = flag.Bool("cpu", false, "enable CPU profiling")
 	periodFlag     = flag.Int("p", 5, "period of stat display (seconds)")
 	bufPeriodFlag  = flag.Int("bp", 1000, "period of bufferized send (msec)")
 	bufLenFlag     = flag.Int("bl", 4096, "size of send buffer (min=256)")
 )
-
-const (
-	// JSON encode messages
-	JSON = iota
-	// BINARY encode messages
-	BINARY
-)
-
-var msgCodec = BINARY
 
 // For TLS client server, see
 // - https://gist.github.com/spikebike/2232102
@@ -64,14 +55,9 @@ func main() {
 		log.Fatalf("failed to parse rootCA certificate '%s'\n", rootCAFilename)
 	}
 
-	switch *msgFlag {
-	case "binary":
-		msgCodec = BINARY
-	case "json":
-		msgCodec = JSON
-	default:
+	if *msgCodecFlag != "json" && *msgCodecFlag != "binary" {
 		flag.Usage()
-		log.Fatalf("invalid msg flag value (%s). want json or binary.", *msgFlag)
+		log.Fatalf("invalid msg flag value (%s). want 'json' or 'binary'.", *msgCodecFlag)
 	}
 
 	switch {

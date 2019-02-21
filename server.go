@@ -3,8 +3,6 @@ package main
 import (
 	"crypto/rand"
 	"crypto/tls"
-	"encoding/binary"
-	"io"
 	"log"
 	"net"
 	"time"
@@ -68,48 +66,26 @@ func runAsServer() {
 
 func handleClient(conn net.Conn, msgs chan msgInfo) {
 	var (
-		hdr [4]byte
-		ack = []byte{ackByte}
-		buf = make([]byte, 512)
+		ack   = []byte{ackByte}
+		rConn MsgReader
+		err   error
 	)
-
 	defer conn.Close()
 
 	wConn := NewBufWriter(conn, *bufLenFlag, time.Duration(*bufPeriodFlag)*time.Millisecond)
-	rConn := NewBufReader(conn, *bufLenFlag)
+	switch *msgCodecFlag {
+	case "json":
+		rConn = NewJSONReader(NewBufReader(conn, *bufLenFlag))
+	case "binary":
+		rConn = NewBinaryReader(NewBufReader(conn, *bufLenFlag))
+	}
 
 	for {
 		var m msgInfo
 
-		_, err := io.ReadFull(rConn, hdr[:])
+		m.len, err = rConn.Read(&m.msg)
 		if err != nil {
-			log.Println(errors.Wrapf(err, "could not read message header"))
-			break
-		}
-		n := binary.LittleEndian.Uint32(hdr[:])
-		if len(buf) < int(n) {
-			buf = make([]byte, n)
-		} else {
-			buf = buf[:n]
-		}
-		m.len = int(n) + 4
-		_, err = io.ReadFull(rConn, buf)
-		if err != nil {
-			log.Println(errors.Wrapf(err, "could not read message payload"))
-			break
-		}
-
-		switch msgCodec {
-		case JSON:
-			err = m.msg.UnmarshalJSON(buf)
-		case BINARY:
-			err = m.msg.UnmarshalBinary(buf)
-		}
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			log.Println("error:", err)
+			log.Println(errors.Wrapf(err, "could not receive message"))
 			break
 		}
 

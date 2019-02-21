@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/tls"
-	"encoding/binary"
 	"io"
 	"log"
 	"net"
@@ -20,9 +19,10 @@ func runAsClient() {
 	log.Println("target:", *addressFlag)
 
 	var (
-		conn net.Conn
-		err  error
-		id   int64
+		conn  net.Conn
+		err   error
+		id    int64
+		mConn MsgWriter
 	)
 	if *tlsFlag {
 		var clientCert tls.Certificate
@@ -44,14 +44,15 @@ func runAsClient() {
 	defer conn.Close()
 	log.Println("connected to:", conn.RemoteAddr())
 
-	wConn := NewBufWriter(conn, *bufLenFlag, time.Duration(*bufPeriodFlag)*time.Millisecond)
-
+	switch *msgCodecFlag {
+	case "json":
+		mConn = NewJSONWriter(NewBufWriter(conn, *bufLenFlag, time.Duration(*bufPeriodFlag)*time.Millisecond))
+	case "binary":
+		mConn = NewBinaryWriter(NewBufWriter(conn, *bufLenFlag, time.Duration(*bufPeriodFlag)*time.Millisecond))
+	}
 	ackChan := make(chan struct{}, 5000)
 	go getAcks(NewBufReader(conn, *bufLenFlag), ackChan)
-
 	statStart(time.Duration(*periodFlag) * time.Second)
-
-	buf := make([]byte, 512)
 	for {
 		id++
 		m := dmon.Msg{
@@ -62,34 +63,11 @@ func runAsClient() {
 			Component: "test",
 			Message:   "no problem",
 		}
-
-		var (
-			data []byte
-			err  error
-		)
-		switch msgCodec {
-		case JSON:
-			data, err = m.MarshalJSON()
-		case BINARY:
-			data, err = m.MarshalBinary()
-		}
+		n, err := mConn.Write(&m)
 		if err != nil {
-			log.Fatalf("could not encode message: %v", err)
+			log.Fatalf("msg send: %v", err)
 		}
-		buf = buf[:4]
-		binary.LittleEndian.PutUint32(buf, uint32(len(data)))
-		buf = append(buf, data...)
-
-		n, err := wConn.Write(buf)
-		if err != nil {
-			log.Fatalln("send error:", err)
-		}
-		if n != len(buf) {
-			println("truncated write")
-		}
-
 		statUpdate(n)
-
 		ackChan <- struct{}{}
 	}
 }
