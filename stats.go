@@ -45,6 +45,6 @@ func statDisplay(period time.Duration) {
 		if rate == 0. {
 			usmsg = 0
 		}
-		log.Printf("%.3f usec/msg, %.3f Hz, %.3f MB/s\n", usmsg, rate, mbs)
+		log.Printf("%.3f usec/msg, %.3f kHz, %.3f MB/s\n", usmsg, rate/1000, mbs)
 	}
 }
