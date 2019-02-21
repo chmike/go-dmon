@@ -13,19 +13,16 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-var (
-	serverDNSNameCheck = false
-)
+var serverDNSNameCheck = false
 
 func runAsClient() {
 	log.SetPrefix("client ")
 	log.Println("target:", *addressFlag)
 
 	var (
-		conn    io.ReadWriteCloser
-		netConn net.Conn
-		err     error
-		id      int64
+		conn net.Conn
+		err  error
+		id   int64
 	)
 	if *tlsFlag {
 		var clientCert tls.Certificate
@@ -37,26 +34,20 @@ func runAsClient() {
 			Certificates:       []tls.Certificate{clientCert},
 			InsecureSkipVerify: !serverDNSNameCheck,
 		}
-		netConn, err = tls.Dial("tcp", *addressFlag, &config)
+		conn, err = tls.Dial("tcp", *addressFlag, &config)
 	} else {
-		netConn, err = net.Dial("tcp", *addressFlag)
-		if *bufLenFlag == 0 {
-			netConn.(*net.TCPConn).SetNoDelay(false)
-		}
+		conn, err = net.Dial("tcp", *addressFlag)
 	}
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Println("connected to:", netConn.RemoteAddr())
-	if *bufLenFlag != 0 {
-		conn = newSender(netConn, time.Duration(*bufPeriodFlag)*time.Millisecond, *bufLenFlag)
-	} else {
-		conn = netConn
-	}
 	defer conn.Close()
+	log.Println("connected to:", conn.RemoteAddr())
 
-	ack := make(chan struct{}, 5000)
-	go getAcks(conn, ack)
+	wConn := NewBufWriter(conn, *bufLenFlag, time.Duration(*bufPeriodFlag)*time.Millisecond)
+
+	ackChan := make(chan struct{}, 5000)
+	go getAcks(NewBufReader(conn, *bufLenFlag), ackChan)
 
 	statStart(time.Duration(*periodFlag) * time.Second)
 
@@ -89,7 +80,7 @@ func runAsClient() {
 		binary.LittleEndian.PutUint32(buf, uint32(len(data)))
 		buf = append(buf, data...)
 
-		n, err := conn.Write(buf)
+		n, err := wConn.Write(buf)
 		if err != nil {
 			log.Fatalln("send error:", err)
 		}
@@ -99,17 +90,14 @@ func runAsClient() {
 
 		statUpdate(n)
 
-		ack <- struct{}{}
+		ackChan <- struct{}{}
 	}
 }
 
-func getAcks(conn io.ReadWriteCloser, ack chan struct{}) {
-	buf := make([]byte, 3)
-	defer conn.Close()
-
-	for range ack {
-		// do read ack from connection
-		_, err := io.ReadFull(conn, buf)
+func getAcks(conn io.Reader, ackChan chan struct{}) {
+	b := make([]byte, 1)
+	for range ackChan {
+		_, err := conn.Read(b)
 		if err != nil {
 			if err == io.EOF {
 				log.Printf("close conn")
@@ -117,8 +105,8 @@ func getAcks(conn io.ReadWriteCloser, ack chan struct{}) {
 			}
 			log.Fatal(err)
 		}
-		if string(buf) != "ack" {
-			log.Fatalf("expected \"ack\", got %s", string(buf))
+		if b[0] != ackByte {
+			log.Fatalf("expected %+X, got %+X", ackByte, b[0])
 		}
 	}
 }

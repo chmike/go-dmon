@@ -2,105 +2,105 @@ package main
 
 import (
 	"io"
-	"log"
-	"net"
 	"sync"
 	"time"
 )
 
-// buffer is a io.ReadWriteCloser encapsulating read and write
-// buffering with periodic buffer flush.
-type buffer struct {
-	recvMtx sync.Mutex
-	sendMtx sync.Mutex
-	rBuf    []byte
-	sBuf    []byte
-	rBeg    int
-	rEnd    int
-	sBeg    int
-	sEnd    int
-	conn    net.Conn
-	period  time.Duration
+// BufWriter is an io.Writer buffering output data.
+type BufWriter struct {
+	mtx sync.Mutex
+	buf []byte
+	n   int
+	w   io.Writer
+	err error
 }
 
-func newSender(conn net.Conn, period time.Duration, bufLen int) *buffer {
-	s := &buffer{
-		rBuf:   make([]byte, bufLen),
-		sBuf:   make([]byte, bufLen),
-		conn:   conn,
-		period: period,
+const minBufLen = 256
+
+// NewBufWriter returns an io.Writer with a buffer of size bufLen. The buffer will be
+// flushed every period milliseconds.
+func NewBufWriter(w io.Writer, bufLen int, period time.Duration) *BufWriter {
+	if bufLen < minBufLen {
+		bufLen = minBufLen
 	}
-	go periodicWriter(s)
-	return s
-}
-
-func (s *buffer) Read(p []byte) (int, error) {
-	s.recvMtx.Lock()
-	defer s.recvMtx.Unlock()
-	if s.rBeg == s.rEnd {
-		s.rBeg = 0
-		s.recvMtx.Unlock()
-		n, err := s.conn.Read(s.rBuf)
-		s.recvMtx.Lock()
-		if err != nil {
-			return n, err
+	b := &BufWriter{
+		buf: make([]byte, bufLen),
+		w:   w,
+	}
+	delay := time.Duration(period)
+	go func() {
+		b.mtx.Lock()
+		defer b.mtx.Unlock()
+		for b.flush() != nil {
+			b.mtx.Unlock()
+			time.Sleep(delay)
+			b.mtx.Lock()
 		}
-		s.rEnd = n
-	}
-	n := copy(p, s.rBuf[s.rBeg:s.rEnd])
-	s.rBeg += n
-	return n, nil
+	}()
+	return b
 }
 
-func (s *buffer) Write(p []byte) (int, error) {
-	s.sendMtx.Lock()
-	defer s.sendMtx.Unlock()
+// Flush writes the content of the buffer and return the error if any.
+// The mutex is required to be locked when called.
+func (b *BufWriter) flush() error {
+	if b.err == nil && b.n != 0 {
+		_, b.err = b.w.Write(b.buf[:b.n])
+		b.n = 0
+	}
+	return b.err
+}
 
-	tot := 0
+// Write bufferize the writing operations.
+func (b *BufWriter) Write(p []byte) (int, error) {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+	if b.err != nil {
+		return 0, b.err
+	}
+	var tot int
 	for len(p) > 0 {
-		n := copy(s.sBuf[s.sEnd:], p)
-		s.sEnd += n
+		n := copy(b.buf[b.n:], p)
 		p = p[n:]
+		b.n += n
 		tot += n
-		if s.sEnd == len(s.sBuf) {
-			if s.period == 0 {
-				return tot, io.EOF
-			}
-			_, err := s.conn.Write(s.sBuf[s.sBeg:s.sEnd])
-			if err != nil {
-				return tot, err
-			}
-			s.sEnd = 0
-		}
-	}
-	return tot, nil
-}
-
-func (s *buffer) Close() error {
-	s.sendMtx.Lock()
-	s.recvMtx.Lock()
-	s.period = 0
-	s.sendMtx.Unlock()
-	s.recvMtx.Unlock()
-	return nil
-}
-
-func periodicWriter(s *buffer) {
-	for {
-		time.Sleep(s.period)
-		s.sendMtx.Lock()
-		if s.period == 0 {
-			s.sendMtx.Unlock()
-			s.conn.Close()
+		if b.n == len(b.buf) && b.flush() != nil {
 			break
 		}
-		if s.sEnd > 0 {
-			_, err := s.conn.Write(s.sBuf[s.sBeg:s.sEnd])
-			if err != nil {
-				log.Fatalln("periodic sender error:", err)
-			}
-			s.sEnd = 0
-		}
-		s.sendMtx.Unlock()
 	}
+	return tot, b.err
+}
+
+// BufReader is an io.Reader buffering input data.
+type BufReader struct {
+	buf []byte
+	beg int
+	end int
+	r   io.Reader
+	err error
+}
+
+// NewBufReader returns an io.Reader with a buffer of size bufLen.
+func NewBufReader(r io.Reader, bufLen int) *BufReader {
+	if bufLen < minBufLen {
+		bufLen = minBufLen
+	}
+	b := &BufReader{
+		buf: make([]byte, bufLen),
+		r:   r,
+	}
+	return b
+}
+
+// Read bufferize the read operations.
+func (b *BufReader) Read(p []byte) (int, error) {
+	if b.err != nil {
+		return 0, b.err
+	}
+	if b.beg == b.end {
+		b.beg = 0
+		b.end, b.err = b.r.Read(b.buf)
+	}
+	n := copy(p, b.buf[b.beg:b.end])
+	b.beg += n
+	return n, b.err
 }

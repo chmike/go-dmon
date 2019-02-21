@@ -13,6 +13,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+const ackByte byte = 0xA5
+
 type msgInfo struct {
 	len int
 	msg dmon.Msg
@@ -64,30 +66,25 @@ func runAsServer() {
 	}
 }
 
-func handleClient(netConn net.Conn, msgs chan msgInfo) {
+func handleClient(conn net.Conn, msgs chan msgInfo) {
 	var (
-		hdr  [4]byte
-		ack  = []byte("ack")
-		buf  = make([]byte, 512)
-		conn io.ReadWriteCloser
+		hdr [4]byte
+		ack = []byte{ackByte}
+		buf = make([]byte, 512)
 	)
 
-	if *bufLenFlag == 0 && !*tlsFlag {
-		netConn.(*net.TCPConn).SetNoDelay(false)
-	}
-	if *bufLenFlag != 0 {
-		conn = newSender(netConn, time.Duration(*bufPeriodFlag)*time.Millisecond, *bufLenFlag)
-	} else {
-		conn = netConn
-	}
 	defer conn.Close()
+
+	wConn := NewBufWriter(conn, *bufLenFlag, time.Duration(*bufPeriodFlag)*time.Millisecond)
+	rConn := NewBufReader(conn, *bufLenFlag)
 
 	for {
 		var m msgInfo
 
-		_, err := io.ReadFull(conn, hdr[:])
+		_, err := io.ReadFull(rConn, hdr[:])
 		if err != nil {
-			log.Fatal(errors.Wrapf(err, "could not read message header"))
+			log.Println(errors.Wrapf(err, "could not read message header"))
+			break
 		}
 		n := binary.LittleEndian.Uint32(hdr[:])
 		if len(buf) < int(n) {
@@ -96,9 +93,10 @@ func handleClient(netConn net.Conn, msgs chan msgInfo) {
 			buf = buf[:n]
 		}
 		m.len = int(n) + 4
-		_, err = io.ReadFull(conn, buf)
+		_, err = io.ReadFull(rConn, buf)
 		if err != nil {
-			log.Fatal(errors.Wrapf(err, "could not read message payload"))
+			log.Println(errors.Wrapf(err, "could not read message payload"))
+			break
 		}
 
 		switch msgCodec {
@@ -111,12 +109,13 @@ func handleClient(netConn net.Conn, msgs chan msgInfo) {
 			if err == io.EOF {
 				break
 			}
-			log.Fatalln("error:", err)
+			log.Println("error:", err)
+			break
 		}
 
 		msgs <- m
 
-		_, err = conn.Write(ack)
+		_, err = wConn.Write(ack)
 		if err != nil {
 			log.Println("send error:", err)
 			break
