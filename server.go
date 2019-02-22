@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const ackByte byte = 0xA5
+const ackCode byte = 0xA5
 
 type msgInfo struct {
 	len int
@@ -66,13 +66,12 @@ func runAsServer() {
 
 func handleClient(conn net.Conn, msgs chan msgInfo) {
 	var (
-		ack   = []byte{ackByte}
 		rConn MsgReader
 		err   error
 	)
 	defer conn.Close()
 
-	wConn := NewBufWriter(conn, *bufLenFlag, time.Duration(*bufPeriodFlag)*time.Millisecond)
+	bufWriter := NewBufWriter(conn, *bufLenFlag, time.Duration(*bufPeriodFlag)*time.Millisecond)
 	switch *msgCodecFlag {
 	case "json":
 		rConn = NewJSONReader(NewBufReader(conn, *bufLenFlag))
@@ -91,7 +90,7 @@ func handleClient(conn net.Conn, msgs chan msgInfo) {
 
 		msgs <- m
 
-		_, err = wConn.Write(ack)
+		err = bufWriter.WriteByte(ackCode)
 		if err != nil {
 			log.Println("send error:", err)
 			break

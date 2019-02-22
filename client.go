@@ -19,10 +19,10 @@ func runAsClient() {
 	log.Println("target:", *addressFlag)
 
 	var (
-		conn  net.Conn
-		err   error
-		id    int64
-		mConn MsgWriter
+		conn      net.Conn
+		err       error
+		id        int64
+		msgWriter MsgWriter
 	)
 	if *tlsFlag {
 		var clientCert tls.Certificate
@@ -44,11 +44,12 @@ func runAsClient() {
 	defer conn.Close()
 	log.Println("connected to:", conn.RemoteAddr())
 
+	bufWriter := NewBufWriter(conn, *bufLenFlag, time.Duration(*bufPeriodFlag)*time.Millisecond)
 	switch *msgCodecFlag {
 	case "json":
-		mConn = NewJSONWriter(NewBufWriter(conn, *bufLenFlag, time.Duration(*bufPeriodFlag)*time.Millisecond))
+		msgWriter = NewJSONWriter(bufWriter)
 	case "binary":
-		mConn = NewBinaryWriter(NewBufWriter(conn, *bufLenFlag, time.Duration(*bufPeriodFlag)*time.Millisecond))
+		msgWriter = NewBinaryWriter(bufWriter)
 	}
 	reqAcks := make(chan struct{}, 5000)
 	go getAcks(NewBufReader(conn, *bufLenFlag), reqAcks)
@@ -63,7 +64,7 @@ func runAsClient() {
 			Component: "test",
 			Message:   "no problem",
 		}
-		n, err := mConn.Write(&m)
+		n, err := msgWriter.Write(&m)
 		if err != nil {
 			log.Fatalf("msg send: %v", err)
 		}
@@ -72,10 +73,9 @@ func runAsClient() {
 	}
 }
 
-func getAcks(conn io.Reader, reqAcks chan struct{}) {
-	b := make([]byte, 1)
+func getAcks(bufReader *BufReader, reqAcks chan struct{}) {
 	for range reqAcks {
-		_, err := conn.Read(b)
+		b, err := bufReader.ReadByte()
 		if err != nil {
 			if err == io.EOF {
 				log.Printf("close conn")
@@ -83,8 +83,8 @@ func getAcks(conn io.Reader, reqAcks chan struct{}) {
 			}
 			log.Fatal(err)
 		}
-		if b[0] != ackByte {
-			log.Fatalf("expected %+X, got %+X", ackByte, b[0])
+		if b != ackCode {
+			log.Fatalf("expected %+X, got %+X", ackCode, b)
 		}
 	}
 }
