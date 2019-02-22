@@ -27,12 +27,10 @@ func (j *JSONWriter) Write(m *Msg) (n int, err error) {
 	defer errors.Wrap(err, "json encode")
 	var buf [4]byte
 	j.b.Reset()
-	_, err = j.b.Write(buf[:])
-	if err != nil {
+	if _, err = j.b.Write(buf[:]); err != nil {
 		return 0, err
 	}
-	err = j.e.Encode(m)
-	if err != nil {
+	if err = j.e.Encode(m); err != nil {
 		return 0, err
 	}
 	data := j.b.Bytes()

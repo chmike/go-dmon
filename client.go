@@ -21,7 +21,7 @@ func runAsClient() {
 	var (
 		conn      net.Conn
 		err       error
-		msgWriter MsgWriter
+		msgWriter dmon.MsgWriter
 	)
 	if *tlsFlag {
 		var clientCert tls.Certificate
@@ -48,7 +48,7 @@ func runAsClient() {
 	case "json":
 		msgWriter = dmon.NewJSONWriter(bufWriter)
 	case "binary":
-		msgWriter = NewBinaryWriter(bufWriter)
+		msgWriter = dmon.NewBinaryWriter(bufWriter)
 	}
 	reqAcks := make(chan struct{}, 5000)
 	go getAcks(NewBufReader(conn, *bufLenFlag), reqAcks)

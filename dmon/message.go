@@ -2,6 +2,7 @@ package dmon
 
 import "time"
 
+// Msg is a monitoring log meessage.
 type Msg struct {
 	Stamp     time.Time `json:"stamp"`
 	Level     string    `json:"level"`

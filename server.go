@@ -66,7 +66,7 @@ func runAsServer() {
 
 func handleClient(conn net.Conn, msgs chan msgInfo) {
 	var (
-		rConn MsgReader
+		rConn dmon.MsgReader
 		err   error
 	)
 	defer conn.Close()
@@ -76,7 +76,7 @@ func handleClient(conn net.Conn, msgs chan msgInfo) {
 	case "json":
 		rConn = dmon.NewJSONReader(NewBufReader(conn, *bufLenFlag))
 	case "binary":
-		rConn = NewBinaryReader(NewBufReader(conn, *bufLenFlag))
+		rConn = dmon.NewBinaryReader(NewBufReader(conn, *bufLenFlag))
 	}
 
 	for {
