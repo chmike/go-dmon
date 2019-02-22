@@ -9,8 +9,6 @@ import (
 // MarshalBinary implements encoding.BinaryMarshaler
 func (o *Msg) MarshalBinary() (data []byte, err error) {
 	var buf [8]byte
-	binary.LittleEndian.PutUint64(buf[:8], uint64(o.ID))
-	data = append(data, buf[:8]...)
 	{
 		sub, err := o.Stamp.MarshalBinary()
 		if err != nil {
@@ -37,8 +35,6 @@ func (o *Msg) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary implements encoding.BinaryUnmarshaler
 func (o *Msg) UnmarshalBinary(data []byte) (err error) {
-	o.ID = int64(binary.LittleEndian.Uint64(data[:8]))
-	data = data[8:]
 	{
 		n := int(binary.LittleEndian.Uint64(data[:8]))
 		data = data[8:]

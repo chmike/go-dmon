@@ -21,7 +21,6 @@ func runAsClient() {
 	var (
 		conn      net.Conn
 		err       error
-		id        int64
 		msgWriter MsgWriter
 	)
 	if *tlsFlag {
@@ -47,7 +46,7 @@ func runAsClient() {
 	bufWriter := NewBufWriter(conn, *bufLenFlag, time.Duration(*bufPeriodFlag)*time.Millisecond)
 	switch *msgCodecFlag {
 	case "json":
-		msgWriter = NewJSONWriter(bufWriter)
+		msgWriter = dmon.NewJSONWriter(bufWriter)
 	case "binary":
 		msgWriter = NewBinaryWriter(bufWriter)
 	}
@@ -55,9 +54,7 @@ func runAsClient() {
 	go getAcks(NewBufReader(conn, *bufLenFlag), reqAcks)
 	statStart(time.Duration(*periodFlag) * time.Second)
 	for {
-		id++
 		m := dmon.Msg{
-			ID:        id,
 			Stamp:     time.Now().UTC(),
 			Level:     "info",
 			System:    "dmon",
