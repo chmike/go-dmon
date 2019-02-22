@@ -50,8 +50,8 @@ func runAsClient() {
 	case "binary":
 		mConn = NewBinaryWriter(NewBufWriter(conn, *bufLenFlag, time.Duration(*bufPeriodFlag)*time.Millisecond))
 	}
-	ackChan := make(chan struct{}, 5000)
-	go getAcks(NewBufReader(conn, *bufLenFlag), ackChan)
+	reqAcks := make(chan struct{}, 5000)
+	go getAcks(NewBufReader(conn, *bufLenFlag), reqAcks)
 	statStart(time.Duration(*periodFlag) * time.Second)
 	for {
 		id++
@@ -68,13 +68,13 @@ func runAsClient() {
 			log.Fatalf("msg send: %v", err)
 		}
 		statUpdate(n)
-		ackChan <- struct{}{}
+		reqAcks <- struct{}{}
 	}
 }
 
-func getAcks(conn io.Reader, ackChan chan struct{}) {
+func getAcks(conn io.Reader, reqAcks chan struct{}) {
 	b := make([]byte, 1)
-	for range ackChan {
+	for range reqAcks {
 		_, err := conn.Read(b)
 		if err != nil {
 			if err == io.EOF {
