@@ -1,4 +1,4 @@
-package main
+package dmon
 
 import (
 	"io"

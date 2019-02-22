@@ -3,7 +3,6 @@ package dmon
 import (
 	"encoding/binary"
 	"io"
-	"time"
 
 	"github.com/pkg/errors"
 )
@@ -63,10 +62,12 @@ func (r *BinaryReader) Read(m *Msg) (n int, err error) {
 // MarshalBinary appends binary encoded Msg to data.
 func (o *Msg) MarshalBinary(data []byte) ([]byte, error) {
 	var b [8]byte
-	binary.LittleEndian.PutUint64(b[:], uint64(o.Stamp.UTC().Unix()))
-	data = append(data, b[:]...)
-	binary.LittleEndian.PutUint32(b[:4], uint32(o.Stamp.UTC().UnixNano()%1000000000))
-	data = append(data, b[:4]...)
+	sub, err := o.Stamp.MarshalBinary()
+	if err != nil {
+		return data, err
+	}
+	data = append(data, byte(len(sub)))
+	data = append(data, sub...)
 	binary.LittleEndian.PutUint32(b[:4], uint32(len(o.Level)))
 	data = append(data, b[:4]...)
 	data = append(data, []byte(o.Level)...)
@@ -84,11 +85,13 @@ func (o *Msg) MarshalBinary(data []byte) ([]byte, error) {
 
 // UnmarshalBinary implements encoding.BinaryUnmarshaler
 func (o *Msg) UnmarshalBinary(data []byte) (err error) {
-	v := int64(binary.LittleEndian.Uint64(data[:8]))
-	data = data[8:]
-	o.Stamp = time.Unix(v, int64(binary.LittleEndian.Uint32(data[:4])))
-	data = data[4:]
-	n := int(binary.LittleEndian.Uint32(data[:4]))
+	n := int(data[0])
+	data = data[1:]
+	if err = o.Stamp.UnmarshalBinary(data[:n]); err != nil {
+		return
+	}
+	data = data[n:]
+	n = int(binary.LittleEndian.Uint32(data[:4]))
 	data = data[4:]
 	o.Level = string(data[:n])
 	data = data[n:]

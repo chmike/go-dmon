@@ -71,12 +71,12 @@ func handleClient(conn net.Conn, msgs chan msgInfo) {
 	)
 	defer conn.Close()
 
-	bufWriter := NewBufWriter(conn, *bufLenFlag, time.Duration(*bufPeriodFlag)*time.Millisecond)
+	bufWriter := dmon.NewBufWriter(conn, *bufLenFlag, time.Duration(*bufPeriodFlag)*time.Millisecond)
 	switch *msgCodecFlag {
 	case "json":
-		rConn = dmon.NewJSONReader(NewBufReader(conn, *bufLenFlag))
+		rConn = dmon.NewJSONReader(dmon.NewBufReader(conn, *bufLenFlag))
 	case "binary":
-		rConn = dmon.NewBinaryReader(NewBufReader(conn, *bufLenFlag))
+		rConn = dmon.NewBinaryReader(dmon.NewBufReader(conn, *bufLenFlag))
 	}
 
 	for {

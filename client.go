@@ -43,7 +43,7 @@ func runAsClient() {
 	defer conn.Close()
 	log.Println("connected to:", conn.RemoteAddr())
 
-	bufWriter := NewBufWriter(conn, *bufLenFlag, time.Duration(*bufPeriodFlag)*time.Millisecond)
+	bufWriter := dmon.NewBufWriter(conn, *bufLenFlag, time.Duration(*bufPeriodFlag)*time.Millisecond)
 	switch *msgCodecFlag {
 	case "json":
 		msgWriter = dmon.NewJSONWriter(bufWriter)
@@ -51,7 +51,7 @@ func runAsClient() {
 		msgWriter = dmon.NewBinaryWriter(bufWriter)
 	}
 	reqAcks := make(chan struct{}, 5000)
-	go getAcks(NewBufReader(conn, *bufLenFlag), reqAcks)
+	go getAcks(dmon.NewBufReader(conn, *bufLenFlag), reqAcks)
 	statStart(time.Duration(*periodFlag) * time.Second)
 	for {
 		m := dmon.Msg{
@@ -70,7 +70,7 @@ func runAsClient() {
 	}
 }
 
-func getAcks(bufReader *BufReader, reqAcks chan struct{}) {
+func getAcks(bufReader *dmon.BufReader, reqAcks chan struct{}) {
 	for range reqAcks {
 		b, err := bufReader.ReadByte()
 		if err != nil {
