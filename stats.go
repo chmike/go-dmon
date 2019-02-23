@@ -3,14 +3,15 @@ package main
 import (
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 type statInfo struct {
 	mtx       sync.Mutex
+	stamp     time.Time
 	accMsgLen uint64
 	nbrMsg    uint64
-	stamp     time.Time
 }
 
 var stats = statInfo{stamp: time.Now()}
@@ -21,22 +22,16 @@ func statStart(period time.Duration) {
 }
 
 func statUpdate(msgLen int) {
-	stats.mtx.Lock()
-	stats.accMsgLen += uint64(msgLen)
-	stats.nbrMsg++
-	stats.mtx.Unlock()
+	atomic.AddUint64(&stats.accMsgLen, uint64(msgLen))
+	atomic.AddUint64(&stats.nbrMsg, 1)
 }
 
 func statDisplay(period time.Duration) {
 	for {
 		time.Sleep(period)
 
-		stats.mtx.Lock()
-		accMsgLen := stats.accMsgLen
-		stats.accMsgLen = 0
-		nbrMsg := stats.nbrMsg
-		stats.nbrMsg = 0
-		stats.mtx.Unlock()
+		accMsgLen := atomic.SwapUint64(&stats.accMsgLen, 0)
+		nbrMsg := atomic.SwapUint64(&stats.nbrMsg, 0)
 		delay := time.Since(stats.stamp)
 		stats.stamp = time.Now()
 		mbs := float64(accMsgLen) / (1000000. * delay.Seconds())
