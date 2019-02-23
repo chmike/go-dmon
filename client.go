@@ -12,7 +12,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-var serverDNSNameCheck = false
+// check that the server’s name in the certificate matches the hosst name
+const serverDNSNameCheck = false
 
 func runAsClient() {
 	log.SetPrefix("client ")
@@ -50,8 +51,8 @@ func runAsClient() {
 	case "binary":
 		msgWriter = dmon.NewBinaryWriter(bufWriter)
 	}
-	reqAcks := make(chan struct{}, 5000)
-	go getAcks(dmon.NewBufReader(conn, *bufLenFlag), reqAcks)
+	ackReqs := make(chan struct{}, *bufLenFlag*2)
+	go getAcks(dmon.NewBufReader(conn, *bufLenFlag), ackReqs)
 	statStart(time.Duration(*periodFlag) * time.Second)
 	for {
 		m := dmon.Msg{
@@ -66,12 +67,12 @@ func runAsClient() {
 			log.Fatalf("msg send: %v", err)
 		}
 		statUpdate(n)
-		reqAcks <- struct{}{}
+		ackReqs <- struct{}{}
 	}
 }
 
-func getAcks(bufReader *dmon.BufReader, reqAcks chan struct{}) {
-	for range reqAcks {
+func getAcks(bufReader *dmon.BufReader, ackReqs chan struct{}) {
+	for range ackReqs {
 		b, err := bufReader.ReadByte()
 		if err != nil {
 			if err == io.EOF {

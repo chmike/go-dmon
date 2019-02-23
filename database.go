@@ -40,9 +40,7 @@ func database(msgs chan msgInfo) {
 
 	statStart(time.Duration(*periodFlag) * time.Second)
 
-	for {
-		m := <-msgs
-
+	for m := range msgs {
 		if *dbFlag {
 			_, err = db.Exec("INSERT dmon SET stamp=?,level=?,system=?,component=?,message=?",
 				m.msg.Stamp, m.msg.Level, m.msg.System, m.msg.Component, m.msg.Message)
@@ -51,7 +49,6 @@ func database(msgs chan msgInfo) {
 				continue
 			}
 		}
-
 		statUpdate(m.len)
 	}
 }

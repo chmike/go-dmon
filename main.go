@@ -57,7 +57,7 @@ func main() {
 
 	if *msgCodecFlag != "json" && *msgCodecFlag != "binary" {
 		flag.Usage()
-		log.Fatalf("invalid msg flag value (%s). want 'json' or 'binary'.", *msgCodecFlag)
+		log.Fatalf("invalid msg flag value (%s). Want 'json' or 'binary'.", *msgCodecFlag)
 	}
 
 	switch {

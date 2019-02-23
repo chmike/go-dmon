@@ -21,7 +21,7 @@ type msgInfo struct {
 func runAsServer() {
 	log.SetPrefix("server ")
 
-	msgs := make(chan msgInfo, 1000)
+	msgs := make(chan msgInfo, *bufLenFlag/10)
 	defer close(msgs)
 	go database(msgs)
 
