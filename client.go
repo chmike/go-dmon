@@ -64,7 +64,7 @@ func runAsClient() {
 		}
 		n, err := msgWriter.Write(&m)
 		if err != nil {
-			log.Fatalf("msg send: %v", err)
+			log.Fatalf("send message: %v", err)
 		}
 		statUpdate(n)
 		ackReqs <- struct{}{}

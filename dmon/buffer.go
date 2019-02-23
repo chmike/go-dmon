@@ -30,12 +30,12 @@ func NewBufWriter(w io.Writer, bufLen int, period time.Duration) *BufWriter {
 	delay := time.Duration(period)
 	go func() {
 		b.mtx.Lock()
-		defer b.mtx.Unlock()
 		for b.flush() != nil {
 			b.mtx.Unlock()
 			time.Sleep(delay)
 			b.mtx.Lock()
 		}
+		b.mtx.Unlock()
 	}()
 	return b
 }
@@ -58,32 +58,32 @@ func (b *BufWriter) flush() error {
 // Write bufferize the writing operations.
 func (b *BufWriter) Write(p []byte) (int, error) {
 	b.mtx.Lock()
-	defer b.mtx.Unlock()
-	if b.err != nil {
-		return 0, b.err
-	}
 	var tot int
-	for len(p) > 0 {
-		if b.n == len(b.buf) && b.flush() != nil {
-			break
+	if b.err == nil {
+		for len(p) > 0 {
+			if b.n == len(b.buf) && b.flush() != nil {
+				break
+			}
+			n := copy(b.buf[b.n:], p)
+			p = p[n:]
+			b.n += n
+			tot += n
 		}
-		n := copy(b.buf[b.n:], p)
-		p = p[n:]
-		b.n += n
-		tot += n
 	}
+	b.mtx.Unlock()
 	return tot, b.err
 }
 
 // WriteByte writes a byte in the bufferized writer.
 func (b *BufWriter) WriteByte(p byte) error {
 	b.mtx.Lock()
-	defer b.mtx.Unlock()
 	if b.err != nil || (b.n == len(b.buf) && b.flush() != nil) {
+		b.mtx.Unlock()
 		return b.err
 	}
 	b.buf[b.n] = p
 	b.n++
+	b.mtx.Unlock()
 	return nil
 }
 
@@ -121,29 +121,28 @@ func (b *BufReader) fetch() error {
 }
 
 // Read bufferize the read operations.
-func (b *BufReader) Read(p []byte) (int, error) {
-	if b.err != nil {
-		return 0, b.err
+func (b *BufReader) Read(p []byte) (n int, err error) {
+	if b.err == nil {
+		if b.beg == b.end && b.fetch() != nil {
+			return 0, b.err
+		}
+		n = copy(p, b.buf[b.beg:b.end])
+		b.beg += n
 	}
-	if b.beg == b.end && b.fetch() != nil {
-		return 0, b.err
-	}
-	n := copy(p, b.buf[b.beg:b.end])
-	b.beg += n
-	return n, nil
+	return n, b.err
+
 }
 
 // ReadByte reads a byte from the bufferizer reader.
-func (b *BufReader) ReadByte() (byte, error) {
-	if b.err != nil {
-		return 0, b.err
+func (b *BufReader) ReadByte() (p byte, err error) {
+	if b.err == nil {
+		if b.beg == b.end && b.fetch() != nil {
+			return 0, b.err
+		}
+		p = b.buf[b.beg]
+		b.beg++
 	}
-	if b.beg == b.end && b.fetch() != nil {
-		return 0, b.err
-	}
-	p := b.buf[b.beg]
-	b.beg++
-	return p, nil
+	return p, b.err
 }
 
 // ReadFull fills p with bytes from the bufferized reader.

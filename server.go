@@ -90,8 +90,7 @@ func handleClient(conn net.Conn, msgs chan msgInfo) {
 
 		msgs <- m
 
-		err = bufWriter.WriteByte(ackCode)
-		if err != nil {
+		if err = bufWriter.WriteByte(ackCode); err != nil {
 			log.Println("send error:", err)
 			break
 		}

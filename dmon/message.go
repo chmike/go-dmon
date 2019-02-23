@@ -44,19 +44,18 @@ func NewJSONWriter(w io.Writer) *JSONWriter {
 }
 
 func (j *JSONWriter) Write(m *Msg) (n int, err error) {
-	defer errors.Wrap(err, "json encode")
 	var buf [4]byte
 	j.b.Reset()
 	if _, err = j.b.Write(buf[:]); err != nil {
-		return 0, err
+		return 0, errors.Wrap(err, "json encode")
 	}
 	if err = j.e.Encode(m); err != nil {
-		return 0, err
+		return 0, errors.Wrap(err, "json encode")
 	}
 	data := j.b.Bytes()
 	binary.LittleEndian.PutUint32(data, uint32(len(data)-4))
 	n, err = j.w.Write(data)
-	return n, err
+	return n, errors.Wrap(err, "json encode")
 }
 
 // JSONReader is  MsgReader for JSON.
@@ -71,11 +70,10 @@ func NewJSONReader(r io.Reader) *JSONReader {
 }
 
 func (j *JSONReader) Read(m *Msg) (n int, err error) {
-	defer errors.Wrap(err, "json decode")
 	var hdr [4]byte
 	n, err = io.ReadFull(j.r, hdr[:])
 	if err != nil {
-		return
+		return n, errors.Wrap(err, "json decode")
 	}
 	msgLen := int(binary.LittleEndian.Uint32(hdr[:]))
 	if msgLen > len(j.buf) {
@@ -85,7 +83,7 @@ func (j *JSONReader) Read(m *Msg) (n int, err error) {
 	n, err = io.ReadFull(j.r, j.buf)
 	n += 4
 	if err != nil {
-		return
+		return n, errors.Wrap(err, "json decode")
 	}
 	err = json.Unmarshal(j.buf, m)
 	return
@@ -104,12 +102,11 @@ func NewBinaryWriter(w io.Writer) *BinaryWriter {
 
 func (w *BinaryWriter) Write(m *Msg) (n int, err error) {
 	var b [8]byte
-	defer errors.Wrap(err, "binary encode")
 	// reserve space for message length
 	w.buf = w.buf[:4]
 	sub, err := m.Stamp.MarshalBinary()
 	if err != nil {
-		return 0, err
+		return 0, errors.Wrap(err, "binary encode")
 	}
 	w.buf = append(w.buf, byte(len(sub)))
 	w.buf = append(w.buf, sub...)
@@ -142,43 +139,43 @@ func NewBinaryReader(r io.Reader) *BinaryReader {
 }
 
 func (r *BinaryReader) Read(m *Msg) (n int, err error) {
-	defer errors.Wrap(err, "binary decode")
 	var hdr [4]byte
 	if n, err = io.ReadFull(r.r, hdr[:]); err != nil {
-		return
+		return n, errors.Wrap(err, "binary decode")
 	}
 	msgLen := int(binary.LittleEndian.Uint32(hdr[:]))
 	if msgLen > len(r.buf) {
 		r.buf = make([]byte, msgLen+100)
 	}
-	r.buf = r.buf[:msgLen]
-	n, err = io.ReadFull(r.r, r.buf)
+	data := r.buf[:msgLen]
+	n, err = io.ReadFull(r.r, data)
 	n += 4
 	if err != nil {
-		return
+		return n, errors.Wrap(err, "binary decode")
 	}
-	data := r.buf
 	l := int(data[0])
 	data = data[1:]
 	if err = m.Stamp.UnmarshalBinary(data[:l]); err != nil {
-		return
+		return n, errors.Wrap(err, "binary decode")
 	}
 	data = data[l:]
-	n = int(binary.LittleEndian.Uint32(data[:4]))
+	l = int(binary.LittleEndian.Uint32(data[:4]))
 	data = data[4:]
-	m.Level = string(data[:n])
-	data = data[n:]
-	n = int(binary.LittleEndian.Uint32(data[:4]))
+	m.Level = string(data[:l])
+	data = data[l:]
+	l = int(binary.LittleEndian.Uint32(data[:4]))
 	data = data[4:]
-	m.System = string(data[:n])
-	data = data[n:]
-	n = int(binary.LittleEndian.Uint32(data[:4]))
+	m.System = string(data[:l])
+	data = data[l:]
+	l = int(binary.LittleEndian.Uint32(data[:4]))
 	data = data[4:]
-	m.Component = string(data[:n])
-	data = data[n:]
-	n = int(binary.LittleEndian.Uint32(data[:4]))
+	m.Component = string(data[:l])
+	data = data[l:]
+	l = int(binary.LittleEndian.Uint32(data[:4]))
 	data = data[4:]
-	m.Message = string(data[:n])
-	data = data[n:]
+	if l != len(data) {
+		return n, errors.Wrap(err, "binary decode")
+	}
+	m.Message = string(data)
 	return
 }

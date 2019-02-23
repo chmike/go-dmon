@@ -40,15 +40,19 @@ func database(msgs chan msgInfo) {
 
 	statStart(time.Duration(*periodFlag) * time.Second)
 
-	for m := range msgs {
-		if *dbFlag {
+	if *dbFlag {
+		for m := range msgs {
 			_, err = db.Exec("INSERT dmon SET stamp=?,level=?,system=?,component=?,message=?",
 				m.msg.Stamp, m.msg.Level, m.msg.System, m.msg.Component, m.msg.Message)
 			if err != nil {
 				log.Println("ERROR:", err, ": ignoring entry")
 				continue
 			}
+			statUpdate(m.len)
 		}
-		statUpdate(m.len)
+	} else {
+		for m := range msgs {
+			statUpdate(m.len)
+		}
 	}
 }
