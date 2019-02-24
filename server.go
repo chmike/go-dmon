@@ -68,6 +68,7 @@ func handleClient(conn net.Conn, msgs chan msgInfo) {
 	var (
 		rConn dmon.MsgReader
 		err   error
+		m     msgInfo
 	)
 	defer conn.Close()
 
@@ -80,8 +81,6 @@ func handleClient(conn net.Conn, msgs chan msgInfo) {
 	}
 
 	for {
-		var m msgInfo
-
 		m.len, err = rConn.Read(&m.msg)
 		if err != nil {
 			log.Println(errors.Wrapf(err, "could not receive message"))
