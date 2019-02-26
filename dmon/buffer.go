@@ -30,7 +30,7 @@ func NewBufWriter(w io.Writer, bufLen int, period time.Duration) *BufWriter {
 	delay := time.Duration(period)
 	go func() {
 		b.mtx.Lock()
-		for b.flush() != nil {
+		for b.flush() == nil {
 			b.mtx.Unlock()
 			time.Sleep(delay)
 			b.mtx.Lock()
