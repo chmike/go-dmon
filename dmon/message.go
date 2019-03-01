@@ -1,10 +1,8 @@
 package dmon
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/json"
-	"io"
 	"time"
 
 	"github.com/pkg/errors"
@@ -19,6 +17,71 @@ type Msg struct {
 	Message   string    `json:"message"`
 }
 
+func (m *Msg) JSONEncode(buf []byte) ([]byte, error) {
+	jsonMsg, err := json.Marshal(m)
+	if err != nil {
+		return buf, errors.Wrap(err, "json encode")
+	}
+	return append(buf, jsonMsg...), nil
+}
+
+func (m *Msg) JSONDecode(buf []byte) error {
+	return json.Unmarshal(buf, m)
+}
+
+func (m *Msg) BinaryEncode(buf []byte) ([]byte, error) {
+	var b [8]byte
+	sub, err := m.Stamp.MarshalBinary()
+	if err != nil {
+		return buf, errors.Wrap(err, "binary encode")
+	}
+	buf = append(buf, byte(len(sub)))
+	buf = append(buf, sub...)
+	binary.LittleEndian.PutUint32(b[:4], uint32(len(m.Level)))
+	buf = append(buf, b[:4]...)
+	buf = append(buf, []byte(m.Level)...)
+	binary.LittleEndian.PutUint32(b[:4], uint32(len(m.System)))
+	buf = append(buf, b[:4]...)
+	buf = append(buf, []byte(m.System)...)
+	binary.LittleEndian.PutUint32(b[:4], uint32(len(m.Component)))
+	buf = append(buf, b[:4]...)
+	buf = append(buf, []byte(m.Component)...)
+	binary.LittleEndian.PutUint32(b[:4], uint32(len(m.Message)))
+	buf = append(buf, b[:4]...)
+	buf = append(buf, []byte(m.Message)...)
+	return buf, nil
+}
+
+func (m *Msg) BinaryDecode(data []byte) error {
+	l := int(data[0])
+	data = data[1:]
+	if err := m.Stamp.UnmarshalBinary(data[:l]); err != nil {
+		return errors.Wrap(err, "binary decode")
+	}
+	data = data[l:]
+	l = int(binary.LittleEndian.Uint32(data[:4]))
+	data = data[4:]
+	m.Level = string(data[:l])
+	data = data[l:]
+	l = int(binary.LittleEndian.Uint32(data[:4]))
+	data = data[4:]
+	m.System = string(data[:l])
+	data = data[l:]
+	l = int(binary.LittleEndian.Uint32(data[:4]))
+	data = data[4:]
+	m.Component = string(data[:l])
+	data = data[l:]
+	l = int(binary.LittleEndian.Uint32(data[:4]))
+	data = data[4:]
+	if l != len(data) {
+		err := errors.Errorf("expected len(data)= %d, got %d", len(data), l)
+		return errors.Wrap(err, "binary decode")
+	}
+	m.Message = string(data)
+	return nil
+}
+
+/*
 // MsgWriter encode and write messages
 type MsgWriter interface {
 	Write(*Msg) (int, error)
@@ -179,3 +242,4 @@ func (r *BinaryReader) Read(m *Msg) (n int, err error) {
 	m.Message = string(data)
 	return
 }
+*/

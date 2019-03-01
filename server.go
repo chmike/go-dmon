@@ -3,12 +3,12 @@ package main
 import (
 	"crypto/rand"
 	"crypto/tls"
+	"encoding/binary"
 	"log"
 	"net"
 	"time"
 
 	"github.com/chmike/go-dmon/dmon"
-	"github.com/pkg/errors"
 )
 
 const ackCode byte = 0xA5
@@ -29,8 +29,8 @@ func runAsServer() {
 		listener net.Listener
 		err      error
 	)
+	// listen for a connection
 	if *tlsFlag {
-		// listen for a TLS connection
 		var serverCert tls.Certificate
 		serverCert, err = tls.LoadX509KeyPair(serverCRTFilename, serverKeyFilename)
 		if err != nil {
@@ -56,43 +56,67 @@ func runAsServer() {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			log.Printf("server: accept: %s", err)
-			break
+			log.Fatalln("accept error:", err)
 		}
-		log.Printf("server: accepted from %s", conn.RemoteAddr())
 		go handleClient(conn, msgs)
 	}
 }
 
 func handleClient(conn net.Conn, msgs chan msgInfo) {
 	var (
-		rConn dmon.MsgReader
-		err   error
-		m     msgInfo
+		hdr [8]byte
+		err error
+		n   int
+		m   msgInfo
 	)
 	defer conn.Close()
 
-	bufWriter := dmon.NewBufWriter(conn, *bufLenFlag, time.Duration(*bufPeriodFlag)*time.Millisecond)
+	// decode and check message header
+	conn.SetReadDeadline(time.Now().Add(timeOutDelay))
+	_, err = conn.Read(hdr[:])
+	if err != nil {
+		log.Println("recv message header error:", err)
+		return
+	}
+	if string(hdr[:4]) != "DMON" {
+		log.Printf("recv header error: expected 'DMON', got '%s'", string(hdr[:4]))
+		return
+	}
+	dataLen := int(binary.LittleEndian.Uint32(hdr[4:]))
+
+	// decode messag data
+	conn.SetReadDeadline(time.Now().Add(timeOutDelay))
+	buf := make([]byte, dataLen)
+	_, err = conn.Read(buf)
+	if err != nil {
+		log.Println("recv message payload error:", err)
+		return
+	}
 	switch *msgCodecFlag {
 	case "json":
-		rConn = dmon.NewJSONReader(dmon.NewBufReader(conn, *bufLenFlag))
+		err = m.msg.JSONDecode(buf)
 	case "binary":
-		rConn = dmon.NewBinaryReader(dmon.NewBufReader(conn, *bufLenFlag))
+		err = m.msg.BinaryDecode(buf)
+	}
+	if err != nil {
+		log.Println("decode message error:", err)
+		return
 	}
 
-	for {
-		m.len, err = rConn.Read(&m.msg)
-		if err != nil {
-			log.Println(errors.Wrapf(err, "could not receive message"))
-			break
-		}
-
-		msgs <- m
-
-		if err = bufWriter.WriteByte(ackCode); err != nil {
-			log.Println("send error:", err)
-			break
-		}
+	// send acknowledgment
+	var b = [1]byte{ackCode}
+	conn.SetWriteDeadline(time.Now().Add(15 * time.Second))
+	n, err = conn.Write(b[:])
+	if err != nil {
+		log.Println("send acknowledgment error:", err)
+		return
 	}
-	log.Println("conn closed")
+	if n != 1 {
+		log.Printf("send acknowledgment error: expected 1 byte send, got %d", n)
+		return
+	}
+
+	// pass message to database writer
+	m.len = dataLen + len(hdr)
+	msgs <- m
 }
