@@ -18,12 +18,12 @@ var (
 	addressFlag    = flag.String("a", "127.0.0.1:3000", "server: listen address, client: message destination")
 	pkiFlag        = flag.Bool("k", false, "(re)generate private keys and certificates")
 	dbFlag         = flag.Bool("db", false, "store monitoring messages in database")
-	tlsFlag        = flag.Bool("tls", false, "use TLS connection")
-	msgCodecFlag   = flag.String("msg", "binary", "message binary or json encoding")
+	tlsFlag        = flag.Bool("tls", false, "use TLS connection (default tcp)")
+	jsonFlag       = flag.Bool("json", false, "use json encoding (default binary)")
 	cpuFlag        = flag.Bool("cpu", false, "enable CPU profiling")
 	periodFlag     = flag.Int("p", 5, "stat display period in seconds")
 	dbFlushFlag    = flag.Int("dbp", 1000, "database flush period in milliseconds")
-	dbBufLenFlag   = flag.Int("dbl", 4096, "database buffer length")
+	dbBufLenFlag   = flag.Int("dbl", 10, "database buffer length")
 )
 
 // For TLS client server, see
@@ -53,11 +53,6 @@ func main() {
 	}
 	if !certPool.AppendCertsFromPEM(data) {
 		log.Fatalf("failed to parse rootCA certificate '%s'\n", rootCAFilename)
-	}
-
-	if *msgCodecFlag != "json" && *msgCodecFlag != "binary" {
-		flag.Usage()
-		log.Fatalf("invalid msg flag value (%s). Want 'json' or 'binary'.", *msgCodecFlag)
 	}
 
 	switch {

@@ -71,10 +71,9 @@ func (lms *MsgLogSrv) SendMessage(m *dmon.Msg) (n int) {
 
 	// encode message
 	buf := make([]byte, 8, 512)
-	switch *msgCodecFlag {
-	case "json":
+	if *jsonFlag {
 		buf, lms.err = m.JSONEncode(buf)
-	case "binary":
+	} else {
 		buf, lms.err = m.BinaryEncode(buf)
 	}
 	if lms.err != nil {

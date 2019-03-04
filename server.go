@@ -93,10 +93,9 @@ func handleClient(conn net.Conn, msgs chan msgInfo) {
 			log.Println("recv message payload error:", err)
 			return
 		}
-		switch *msgCodecFlag {
-		case "json":
+		if *jsonFlag {
 			err = m.msg.JSONDecode(buf)
-		case "binary":
+		} else {
 			err = m.msg.BinaryDecode(buf)
 		}
 		if err != nil {
