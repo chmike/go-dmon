@@ -71,52 +71,54 @@ func handleClient(conn net.Conn, msgs chan msgInfo) {
 	)
 	defer conn.Close()
 
-	// decode and check message header
-	conn.SetReadDeadline(time.Now().Add(timeOutDelay))
-	_, err = conn.Read(hdr[:])
-	if err != nil {
-		log.Println("recv message header error:", err)
-		return
-	}
-	if string(hdr[:4]) != "DMON" {
-		log.Printf("recv header error: expected 'DMON', got '%s'", string(hdr[:4]))
-		return
-	}
-	dataLen := int(binary.LittleEndian.Uint32(hdr[4:]))
+	for {
+		// decode and check message header
+		conn.SetReadDeadline(time.Now().Add(timeOutDelay))
+		_, err = conn.Read(hdr[:])
+		if err != nil {
+			log.Println("recv message header error:", err)
+			return
+		}
+		if string(hdr[:4]) != "DMON" {
+			log.Printf("recv header error: expected 'DMON', got '%s'", string(hdr[:4]))
+			return
+		}
+		dataLen := int(binary.LittleEndian.Uint32(hdr[4:]))
 
-	// decode messag data
-	conn.SetReadDeadline(time.Now().Add(timeOutDelay))
-	buf := make([]byte, dataLen)
-	_, err = conn.Read(buf)
-	if err != nil {
-		log.Println("recv message payload error:", err)
-		return
-	}
-	switch *msgCodecFlag {
-	case "json":
-		err = m.msg.JSONDecode(buf)
-	case "binary":
-		err = m.msg.BinaryDecode(buf)
-	}
-	if err != nil {
-		log.Println("decode message error:", err)
-		return
-	}
+		// decode messag data
+		conn.SetReadDeadline(time.Now().Add(timeOutDelay))
+		buf := make([]byte, dataLen)
+		_, err = conn.Read(buf)
+		if err != nil {
+			log.Println("recv message payload error:", err)
+			return
+		}
+		switch *msgCodecFlag {
+		case "json":
+			err = m.msg.JSONDecode(buf)
+		case "binary":
+			err = m.msg.BinaryDecode(buf)
+		}
+		if err != nil {
+			log.Println("decode message error:", err)
+			return
+		}
 
-	// send acknowledgment
-	var b = [1]byte{ackCode}
-	conn.SetWriteDeadline(time.Now().Add(15 * time.Second))
-	n, err = conn.Write(b[:])
-	if err != nil {
-		log.Println("send acknowledgment error:", err)
-		return
-	}
-	if n != 1 {
-		log.Printf("send acknowledgment error: expected 1 byte send, got %d", n)
-		return
-	}
+		// send acknowledgment
+		var b = [1]byte{ackCode}
+		conn.SetWriteDeadline(time.Now().Add(15 * time.Second))
+		n, err = conn.Write(b[:])
+		if err != nil {
+			log.Println("send acknowledgment error:", err)
+			return
+		}
+		if n != 1 {
+			log.Printf("send acknowledgment error: expected 1 byte send, got %d", n)
+			return
+		}
 
-	// pass message to database writer
-	m.len = dataLen + len(hdr)
-	msgs <- m
+		// pass message to database writer
+		m.len = dataLen + len(hdr)
+		msgs <- m
+	}
 }
