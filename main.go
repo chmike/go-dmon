@@ -24,6 +24,7 @@ var (
 	periodFlag     = flag.Int("p", 5, "stat display period in seconds")
 	dbFlushFlag    = flag.Int("dbp", 1000, "database flush period in milliseconds")
 	dbBufLenFlag   = flag.Int("dbl", 10, "database buffer length")
+	msgFlag        = flag.Bool("m", false, "display received messages")
 )
 
 // For TLS client server, see

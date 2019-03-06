@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/binary"
+	"encoding/hex"
 	"log"
 	"net"
 	"time"
@@ -80,12 +81,12 @@ func handleClient(conn net.Conn, msgs chan msgInfo) {
 			return
 		}
 		if string(hdr[:4]) != "DMON" {
-			log.Printf("recv header error: expected 'DMON', got '%s'", string(hdr[:4]))
+			log.Printf("recv header error: expected 'DMON', got '%s' (0x%s)", string(hdr[:4]), hex.EncodeToString(hdr[:4]))
 			return
 		}
 		dataLen := int(binary.LittleEndian.Uint32(hdr[4:]))
 
-		// decode messag data
+		// decode message data
 		conn.SetReadDeadline(time.Now().Add(timeOutDelay))
 		buf := make([]byte, dataLen)
 		_, err = conn.Read(buf)
@@ -94,6 +95,9 @@ func handleClient(conn net.Conn, msgs chan msgInfo) {
 			return
 		}
 		if *jsonFlag {
+			if *msgFlag {
+				log.Println("recv:", string(buf))
+			}
 			err = m.msg.JSONDecode(buf)
 		} else {
 			err = m.msg.BinaryDecode(buf)
