@@ -13,14 +13,6 @@ import (
 
 var mysqlCredentials = "dmon:4dmonTest!@/dmon?charset=utf8"
 
-// MsgLogDB holds a connection to the database.
-type MsgLogDB struct {
-	cred string
-	db   *sql.DB
-	err  error
-	msgs []dmon.Msg
-}
-
 func database(msgs chan msgInfo) {
 	statStart(time.Duration(*periodFlag) * time.Second)
 
@@ -37,8 +29,8 @@ func database(msgs chan msgInfo) {
 	for {
 		select {
 		case <-timer.C:
-			// flush if we have one period without message
-			if gotMessagesSinceLaseTick == false {
+			// flush if we have one period without new messages
+			if gotMessagesSinceLaseTick == false && len(db.msgs) > 0 {
 				db.WriteMessages()
 			}
 			gotMessagesSinceLaseTick = false
@@ -51,6 +43,14 @@ func database(msgs chan msgInfo) {
 			statUpdate(m.len)
 		}
 	}
+}
+
+// MsgLogDB holds a connection to the database.
+type MsgLogDB struct {
+	cred string
+	db   *sql.DB
+	err  error
+	msgs []dmon.Msg
 }
 
 // NewMsgLogDB returns a new MsgLogDB.
@@ -71,7 +71,6 @@ func (db *MsgLogDB) WriteMessages() {
 	if db.Error() != nil {
 		log.Fatalf("database: %+v", errors.Wrap(db.Error(), "write messages"))
 	}
-
 	if len(db.msgs) == 0 {
 		return
 	}
@@ -85,7 +84,8 @@ func (db *MsgLogDB) WriteMessages() {
 	stmt, _ := db.db.Prepare(sqlStr)
 	_, db.err = stmt.Exec(vals...)
 	if db.err != nil {
-		db.err = errors.Wrap(db.err, "write messages")
+		db.err = errors.Wrap(db.err, "write to db")
+		log.Printf("%v", db.err)
 		db.db.Close()
 		db.db = nil
 		db.msgs = db.msgs[:0]
